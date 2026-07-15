@@ -460,45 +460,31 @@ export class AiPanelRpcManager implements AIPanelAPI {
 
     async acceptChanges(): Promise<void> {
         try {
-            // Get project root path and thread ID
             const projectRootPath = resolveProjectRootPath();
             const threadId = 'default';
 
-            // Get ALL under_review generations
-            const thread = chatStateStorage.getOrCreateThread(projectRootPath, threadId);
-            const underReviewGenerations = thread.generations.filter(
-                g => g.reviewState.status === 'under_review'
-            );
-
-            if (underReviewGenerations.length === 0) {
-                console.warn("[Review Actions] No pending review generation found for accept");
+            const doneGeneration = chatStateStorage.getDoneGeneration(projectRootPath, threadId);
+            if (!doneGeneration) {
+                console.warn("[Review Actions] No open generation found for accept");
                 return;
             }
 
-            // Get LATEST generation for integration
-            const latestReview = underReviewGenerations[underReviewGenerations.length - 1];
-            console.log(`[Review Actions] Accepting generation ${latestReview.id} with ${latestReview.reviewState.modifiedFiles.length} modified file(s)`);
+            console.log(`[Review Actions] Accepting generation ${doneGeneration.id} with ${doneGeneration.reviewState.modifiedFiles.length} modified file(s)`);
 
-            // Cleanup ALL under_review temp projects (prevents memory leak)
-            if (!process.env.AI_TEST_ENV) {
-                for (const generation of underReviewGenerations) {
-                    if (generation.reviewState.tempProjectPath) {
-                        await cleanupTempProject(generation.reviewState.tempProjectPath);
-                    }
-                }
+            // Its edits are already live in the workspace — accept only finalizes status and
+            // frees its now-unneeded temp project.
+            if (doneGeneration.reviewState.tempProjectPath && !process.env.AI_TEST_ENV) {
+                await cleanupTempProject(doneGeneration.reviewState.tempProjectPath);
             }
 
-            // Mark ALL under_review generations as accepted (also clears affectedPackagePaths)
-            chatStateStorage.acceptAllReviews(projectRootPath, threadId);
-            console.log("[Review Actions] Marked all under_review generations as accepted");
+            chatStateStorage.finalizeLastGenerationIfDone(projectRootPath, threadId);
+            console.log(`[Review Actions] Accepted generation: ${doneGeneration.id}`);
 
-            // Send telemetry for generation kept
-            sendGenerationKeptTelemetry(latestReview.id);
+            sendGenerationKeptTelemetry(doneGeneration.id);
 
             // Notify webview to update review component status and persist
             sendChatComponentNotification("review", { status: "accepted" });
-            const latestGeneration = underReviewGenerations[underReviewGenerations.length - 1];
-            sendSaveChatNotification(Command.Agent, latestGeneration.id);
+            sendSaveChatNotification(Command.Agent, doneGeneration.id);
         } catch (error) {
             console.error("[Review Actions] Error accepting changes:", error);
             throw error;
@@ -507,44 +493,32 @@ export class AiPanelRpcManager implements AIPanelAPI {
 
     async declineChanges(): Promise<void> {
         try {
-            // Get project root path and thread ID
             const projectRootPath = resolveProjectRootPath();
             const threadId = 'default';
 
-            // Get ALL under_review generations
-            const thread = chatStateStorage.getOrCreateThread(projectRootPath, threadId);
-            const underReviewGenerations = thread.generations.filter(
-                g => g.reviewState.status === 'under_review'
-            );
-
-            if (underReviewGenerations.length === 0) {
-                console.warn("[Review Actions] No pending review generation found for decline");
+            const doneGeneration = chatStateStorage.getDoneGeneration(projectRootPath, threadId);
+            if (!doneGeneration) {
+                console.warn("[Review Actions] No open generation found for decline");
                 return;
             }
 
-            console.log(`[Review Actions] Declining ${underReviewGenerations.length} generation(s)`);
+            console.log(`[Review Actions] Reverting generation ${doneGeneration.id}`);
 
-            // Restore workspace to state before the latest generation ran
-            const latestReview = underReviewGenerations[underReviewGenerations.length - 1];
-            const checkpoint = latestReview.checkpoint;
+            // Restore workspace to state before this generation ran
+            const checkpoint = doneGeneration.checkpoint;
             if (checkpoint) {
                 await restoreWorkspaceSnapshot(checkpoint, true);
             } else {
                 console.warn("[Review Actions] No checkpoint found for generation — workspace changes will not be reverted");
             }
 
-            // Cleanup ALL under_review temp projects (prevents memory leak)
-            if (!process.env.AI_TEST_ENV) {
-                for (const generation of underReviewGenerations) {
-                    if (generation.reviewState.tempProjectPath) {
-                        await cleanupTempProject(generation.reviewState.tempProjectPath);
-                    }
-                }
+            if (doneGeneration.reviewState.tempProjectPath && !process.env.AI_TEST_ENV) {
+                await cleanupTempProject(doneGeneration.reviewState.tempProjectPath);
             }
 
             // Append revert notification to model messages so the LLM knows changes were reverted
-            const existingMessages = latestReview.modelMessages || [];
-            chatStateStorage.updateGeneration(projectRootPath, threadId, latestReview.id, {
+            const existingMessages = doneGeneration.modelMessages || [];
+            chatStateStorage.updateGeneration(projectRootPath, threadId, doneGeneration.id, {
                 modelMessages: [
                     ...existingMessages,
                     {
@@ -556,17 +530,14 @@ User reverted the last made changes. The files have been restored to the state b
                 ],
             });
 
-            // Mark ALL under_review generations as error/declined
-            chatStateStorage.declineAllReviews(projectRootPath, threadId);
-            console.log("[Review Actions] Marked all under_review generations as declined");
+            chatStateStorage.revertLastGeneration(projectRootPath, threadId);
+            console.log(`[Review Actions] Reverted generation: ${doneGeneration.id}`);
 
-            // Send telemetry for generation discard
-            sendGenerationDiscardTelemetry(latestReview.id);
+            sendGenerationDiscardTelemetry(doneGeneration.id);
 
             // Notify webview to update review component status and persist
             sendChatComponentNotification("review", { status: "discarded" });
-            const latestGeneration = underReviewGenerations[underReviewGenerations.length - 1];
-            sendSaveChatNotification(Command.Agent, latestGeneration.id);
+            sendSaveChatNotification(Command.Agent, doneGeneration.id);
         } catch (error) {
             console.error("[Review Actions] Error declining changes:", error);
             throw error;
@@ -739,14 +710,14 @@ User reverted the last made changes. The files have been restored to the state b
         const projectRootPath = resolveProjectRootPath();
         const threadId = 'default';
 
-        // Always get tempProjectPath from active generation in chatStateStorage
-        const pendingReview = chatStateStorage.getPendingReviewGeneration(projectRootPath, threadId);
-        if (!pendingReview || !pendingReview.reviewState.tempProjectPath) {
-            console.log(">>> no pending review or temp project path found for semantic diff");
+        // Always get tempProjectPath from the currently open ('done') generation
+        const doneGeneration = chatStateStorage.getDoneGeneration(projectRootPath, threadId);
+        if (!doneGeneration || !doneGeneration.reviewState.tempProjectPath) {
+            console.log(">>> no open generation or temp project path found for semantic diff");
             return undefined;
         }
 
-        const projectPath = pendingReview.reviewState.tempProjectPath;
+        const projectPath = doneGeneration.reviewState.tempProjectPath;
         console.log(">>> active temp project path", projectPath);
         return projectPath;
     }

@@ -46,6 +46,9 @@ import { resolveProjectRootPath } from './agent';
 import { extension } from '../../BalExtensionContext';
 import { notifyMcpServersChanged, notifyMcpLoadErrorsChanged } from '../../RPCLayer';
 import { sendConfigChangeNotification } from './utils/ai-utils';
+import { captureWorkspaceSnapshot, restoreWorkspaceSnapshot } from '../../views/ai-panel/checkpoint/checkpointUtils';
+import { integrateCodeToWorkspace } from './agent/utils';
+import { Checkpoint } from '@wso2/ballerina-core/lib/state-machine-types';
 
 /**
  * Parameters for test-mode code generation
@@ -156,6 +159,20 @@ export function activateAIFeatures(ballerinaExternalInstance: BallerinaExtension
 
         commands.registerCommand('ballerina.test.ai.toMaximizedLibrariesFromLibJson', async (functionResponses: any[], originalLibraries: any[]) => {
             return await toMaximizedLibrariesFromLibJson(functionResponses, originalLibraries);
+        });
+
+        // Checkpoint/revert and live-integration test commands (exercise the real, activated
+        // extension instance rather than a freshly re-required, unactivated module copy).
+        commands.registerCommand('ballerina.test.ai.captureCheckpoint', async (messageId: string): Promise<Checkpoint | null> => {
+            return await captureWorkspaceSnapshot(messageId);
+        });
+
+        commands.registerCommand('ballerina.test.ai.restoreCheckpoint', async (checkpoint: Checkpoint, skipArtifactWait?: boolean): Promise<void> => {
+            return await restoreWorkspaceSnapshot(checkpoint, skipArtifactWait);
+        });
+
+        commands.registerCommand('ballerina.test.ai.integrateCodeToWorkspace', async (tempProjectPath: string, modifiedFiles: string[], ctx: ExecutionContext): Promise<void> => {
+            return await integrateCodeToWorkspace(tempProjectPath, new Set(modifiedFiles), ctx);
         });
     }
 

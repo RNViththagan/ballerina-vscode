@@ -20,6 +20,7 @@ import { chatStateStorage } from '../../../views/ai-panel/chatStateStorage';
 import { AICommandConfig } from "../executors/base/AICommandExecutor";
 import { createWebviewEventHandler } from "../utils/events";
 import { AgentExecutor } from './AgentExecutor';
+import { cleanupTempProject } from "../utils/project/temp-project";
 import { getMigrationSourcePathForProject } from "../migration/orchestrator";
 import {
     sendTelemetryEvent,
@@ -82,17 +83,29 @@ export function createExecutorConfig<TParams>(
  */
 export async function generateAgent(params: GenerateAgentCodeRequest): Promise<boolean> {
     try {
-        // Check for pending review to reuse temp project path
         const projectRootPath = resolveProjectRootPath();
         const threadId = params.threadId || 'default';
-        const pendingReview = chatStateStorage.getPendingReviewGeneration(projectRootPath, threadId);
+
+        // Only one generation may be in flight per thread at a time.
+        if (chatStateStorage.getActiveExecution(projectRootPath, threadId)) {
+            throw new Error('A generation is already in progress. Please wait for it to finish before starting a new one.');
+        }
+
+        // Moving on to a new generation implicitly accepts a still-open previous one.
+        const previousDone = chatStateStorage.finalizeLastGenerationIfDone(projectRootPath, threadId);
+        if (previousDone?.reviewState.tempProjectPath && !process.env.AI_TEST_ENV) {
+            try {
+                await cleanupTempProject(previousDone.reviewState.tempProjectPath);
+            } catch (error) {
+                console.error('[Agent] Failed to clean up previous generation temp project:', error);
+            }
+        }
 
         // Create config using factory function
         const config = createExecutorConfig(params, {
             command: Command.Agent,
             chatStorageEnabled: true,  // Agent uses chat storage for multi-turn conversations
-            cleanupStrategy: 'review', // Review mode - temp persists until user accepts/declines
-            existingTempPath: pendingReview?.reviewState.tempProjectPath
+            cleanupStrategy: 'review', // Review mode - temp persists until user reverts
         });
 
         // Inject migration source tools for projects that have been AI-enhanced
