@@ -37,8 +37,9 @@ import { commands } from "vscode";
 import { openAIPanelWithPrompt } from "../../../views/ai-panel/aiMachine";
 import path from "path";
 import { getTempProject, cleanupTempProject } from "../utils/project/temp-project";
-import { integrateCodeToWorkspace, formatCodeContext } from "../agent/utils";
+import { formatCodeContext } from "../agent/utils";
 import { createExecutionContextFromStateMachine } from "../agent";
+import { addToIntegration } from "../../../rpc-managers/ai-panel/utils";
 
 // =============================================================================
 // ENHANCED MAIN ORCHESTRATOR FUNCTION
@@ -293,12 +294,11 @@ export async function generateContextTypesCore(
         }];
         const modifiedFiles = [targetFilePath];
 
-        // Integrate code to workspace automatically
         if (modifiedFiles.length > 0) {
             const integratingCodeId = `integrating-code_${Date.now()}`;
             eventHandler({ type: "chat_component", componentType: "progress", id: integratingCodeId, data: { text: "Integrating code to workspace...", status: "start" } });
-            const modifiedFilesSet = new Set(modifiedFiles);
-            await integrateCodeToWorkspace(tempProjectPath, modifiedFilesSet, ctx);
+            const workspaceRoot = ctx.workspacePath || ctx.projectPath;
+            await addToIntegration(workspaceRoot, [{ filePath: targetFilePath, content: typesCode }]);
             eventHandler({ type: "chat_component", componentType: "progress", id: integratingCodeId, data: { text: "Integrating code to workspace...", status: "end" } });
             console.log(`[DataMapper] Integrated ${modifiedFiles.length} file(s) to workspace`);
             eventHandler({ type: "content_block", content: "\n\nType generation is complete! The generated types have been added to your workspace." });
