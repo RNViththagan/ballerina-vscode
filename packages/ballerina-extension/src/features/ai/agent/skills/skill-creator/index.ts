@@ -14,8 +14,19 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import skillMd from './SKILL.md';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Skill } from '../types';
+
+function loadSkillMd(): string {
+    try {
+        // Webpack inlines '.md' as raw source (webpack.config.js); tsc-compiled test builds
+        // have no such loader, so fall back to reading the file next to the compiled module.
+        return require('./SKILL.md');
+    } catch {
+        return fs.readFileSync(path.join(__dirname, 'SKILL.md'), 'utf-8');
+    }
+}
 
 function parseSkillMd(content: string): { name: string; description: string; body: string } {
     const start = content.indexOf('---');
@@ -29,7 +40,7 @@ function parseSkillMd(content: string): { name: string; description: string; bod
     };
 }
 
-const { name, description, body } = parseSkillMd(skillMd);
+const { name, description, body } = parseSkillMd(loadSkillMd());
 
 export const skillCreatorSkill: Skill = {
     name,

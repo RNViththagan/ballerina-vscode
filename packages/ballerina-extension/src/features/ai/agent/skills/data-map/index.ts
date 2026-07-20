@@ -14,11 +14,22 @@
 // specific language governing permissions and limitations
 // under the License.
 
-import skillMd from './SKILL.md';
+import * as fs from 'fs';
+import * as path from 'path';
 import { getDataMappingSkillContent } from '../../../data-mapper/prompts/mapping-prompt';
 import { DIAGNOSTICS_TOOL_NAME } from '../../tools/diagnostics';
 import { SkillCommand } from '@wso2/ballerina-core';
 import { Skill } from '../types';
+
+function loadSkillMd(): string {
+    try {
+        // Webpack inlines '.md' as raw source (webpack.config.js); tsc-compiled test builds
+        // have no such loader, so fall back to reading the file next to the compiled module.
+        return require('./SKILL.md');
+    } catch {
+        return fs.readFileSync(path.join(__dirname, 'SKILL.md'), 'utf-8');
+    }
+}
 
 function parseSkillMd(content: string): { name: string; description: string } {
     const start = content.indexOf('---');
@@ -30,7 +41,7 @@ function parseSkillMd(content: string): { name: string; description: string } {
     };
 }
 
-const { name, description } = parseSkillMd(skillMd);
+const { name, description } = parseSkillMd(loadSkillMd());
 
 if (!name || !description) {
     throw new Error(`[data-map] SKILL.md is missing required frontmatter fields (name="${name}", description="${description}")`);
