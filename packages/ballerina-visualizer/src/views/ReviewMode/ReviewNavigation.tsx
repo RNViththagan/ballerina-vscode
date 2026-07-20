@@ -108,22 +108,12 @@ const ToggleSegment = styled.button<{ active: boolean; disabled?: boolean }>`
     }
 `;
 
-const ActionButtons = styled.div`
-    display: flex;
-    gap: 8px;
-    padding-left: 16px;
-    border-left: 1px solid var(--vscode-panel-border);
-    min-width: 158px;
-`;
-
 interface ReviewNavigationProps {
     currentIndex: number;
     totalViews: number;
     currentLabel?: string;
     onPrevious: () => void;
     onNext: () => void;
-    onAccept: () => void;
-    onReject: () => void;
     canGoPrevious: boolean;
     canGoNext: boolean;
     showOldVersion: boolean;
@@ -138,8 +128,6 @@ export function ReviewNavigation(props: ReviewNavigationProps): JSX.Element {
         currentLabel,
         onPrevious,
         onNext,
-        onAccept,
-        onReject,
         canGoPrevious,
         canGoNext,
         showOldVersion,

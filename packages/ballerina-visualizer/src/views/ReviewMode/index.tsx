@@ -388,26 +388,6 @@ export function ReviewMode(): JSX.Element {
         setCurrentItemMetadata(metadata);
     };
 
-    const handleAccept = async () => {
-        try {
-            await rpcClient.getAiPanelRpcClient().acceptChanges();
-            rpcClient.getVisualizerRpcClient().reviewAccepted();
-        } catch (error) {
-            console.error("[Reviewing Changes] Error accepting changes:", error);
-            rpcClient.getVisualizerRpcClient().reviewAccepted();
-        }
-    };
-
-    const handleReject = async () => {
-        try {
-            await rpcClient.getAiPanelRpcClient().declineChanges();
-            rpcClient.getVisualizerRpcClient().goBack();
-        } catch (error) {
-            console.error("[Reviewing Changes] Error declining changes:", error);
-            rpcClient.getVisualizerRpcClient().goBack();
-        }
-    };
-
     const renderDiagram = () => {
         if (!currentView) {
             return <div>No view to display</div>;
@@ -570,8 +550,6 @@ export function ReviewMode(): JSX.Element {
                 currentLabel={currentView?.label}
                 onPrevious={handlePrevious}
                 onNext={handleNext}
-                onAccept={handleAccept}
-                onReject={handleReject}
                 canGoPrevious={canGoPrevious}
                 canGoNext={canGoNext}
                 showOldVersion={currentView?.changeType === ChangeTypeEnum.DELETION ? true : showOldVersion}

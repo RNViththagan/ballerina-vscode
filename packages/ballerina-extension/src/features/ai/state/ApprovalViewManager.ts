@@ -383,12 +383,6 @@ export class ApprovalViewManager {
         RPCLayer._messenger.sendNotification(reviewModeClosed, { type: 'webview', webviewType: AiPanelWebview.viewType });
     }
 
-    /**
-     * Clear cached review data after accept or discard.
-     */
-    clearReviewData(): void {
-        this.cachedReviewData = null;
-    }
 }
 
 export const approvalViewManager = ApprovalViewManager.getInstance();
