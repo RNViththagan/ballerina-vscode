@@ -310,18 +310,6 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                 console.log(`[AgentExecutor] Skipping ai:// baseline seed (skipFreshProjectSetup)`);
             }
 
-            // Fire-and-forget: warm the LS module-package caches for each package's
-            // dependencies while the generation streams, so the first review-diff diagram
-            // does not pay the one-time dependency resolution/compilation cost (seconds)
-            // interactively. Failures are irrelevant — the fetch path pays the cost lazily.
-            for (const project of projects) {
-                const pkgRoot = project.packagePath
-                    ? path.join(tempProjectPath, project.packagePath)
-                    : tempProjectPath;
-                StateMachine.langClient().prewarmDependencies({ projectPath: pkgRoot })
-                    .catch(() => { /* best-effort warm-up only */ });
-            }
-
             const workspaceId = this.config.executionContext.workspacePath || this.config.executionContext.projectPath;
             // Use chatStorage.threadId so onStepFinish writes to the same thread that addGeneration created.
             const threadId = this.config.chatStorage?.threadId ?? 'default';
