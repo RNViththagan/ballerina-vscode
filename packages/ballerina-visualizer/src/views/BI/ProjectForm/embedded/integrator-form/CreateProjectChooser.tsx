@@ -584,7 +584,7 @@ export function CreateProjectChooser({
 
     return (
         <CreateFlowShell
-            title="Create"
+            title="Create Integration Project"
             subtitle="A project helps you organize your integrations and libraries."
             onBack={onBack}
         >
@@ -714,7 +714,7 @@ export function CreateProjectChooser({
                                 onClick={handleCreateIntegration}
                                 appearance="primary"
                             >
-                                {isCreating ? "Creating..." : isValidating ? "Validating..." : "Create Integration"}
+                                {isCreating ? "Creating..." : isValidating ? "Validating..." : "Create"}
                             </Button>
                         </span>
                     </FormFooter>
