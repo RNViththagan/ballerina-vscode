@@ -54,6 +54,8 @@ import { createMiniChatPrompt, MiniChatPrompt } from "./promptHandoff";
 
 const DRAG_THRESHOLD = 5;
 const SNAP_ANIMATION_MS = 250;
+const WIDGET_GAP = 10;
+const INVITE_FADE_MS = 160;
 
 const ANCHOR_CSS: Record<Anchor, React.CSSProperties> = {
     "top-left": { top: EDGE_MARGIN, left: EDGE_MARGIN },
@@ -117,7 +119,7 @@ const Wrapper = styled.div`
     z-index: 1800;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: ${WIDGET_GAP}px;
     pointer-events: none;
 `;
 
@@ -140,8 +142,19 @@ const LabelPill = styled.div`
     cursor: pointer;
 `;
 
-const InviteBox = styled.div`
+/**
+ * Carries the box's hit area across the gap the wrapper leaves untouchable, so a pointer
+ * travelling from the orb to the input never counts as having left the widget. The negative
+ * margin hands the padding back to the layout, leaving the box where it was.
+ */
+const InviteHitBridge = styled.div`
     pointer-events: auto;
+    display: flex;
+    padding: ${WIDGET_GAP}px;
+    margin: -${WIDGET_GAP}px;
+`;
+
+const InviteBox = styled.div<{ visible: boolean }>`
     display: flex;
     align-items: center;
     gap: 4px;
@@ -150,7 +163,12 @@ const InviteBox = styled.div`
     border-radius: 14px;
     padding: 5px 6px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    animation: ${fadeIn} 0.25s ease-out;
+    opacity: ${(props: { visible: boolean }) => (props.visible ? 1 : 0)};
+    transform: translateX(${(props: { visible: boolean }) => (props.visible ? "0" : "6px")});
+    transition: opacity ${INVITE_FADE_MS}ms ease, transform ${INVITE_FADE_MS}ms ease;
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
 `;
 
 const InviteInput = styled.input`
@@ -168,21 +186,6 @@ const InviteInput = styled.input`
     }
     &::placeholder {
         color: var(--vscode-input-placeholderForeground);
-    }
-`;
-
-const InviteDismiss = styled.button`
-    background: transparent;
-    border: none;
-    color: var(--vscode-descriptionForeground);
-    cursor: pointer;
-    font-size: 13px;
-    line-height: 1;
-    padding: 4px 5px;
-    border-radius: 4px;
-    &:hover {
-        color: var(--vscode-foreground);
-        background: var(--vscode-toolbar-hoverBackground);
     }
 `;
 
@@ -231,7 +234,11 @@ export function AgentStatusOrb() {
     const dragStateRef = useRef<{ startX: number; startY: number; wasDrag: boolean } | null>(null);
     const snapTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const [inviteText, setInviteText] = useState("");
-    const [inviteDismissed, setInviteDismissed] = useState(false);
+    const [inviteFocused, setInviteFocused] = useState(false);
+    /** Rendered — true through the fade-out, after the invite is no longer wanted. */
+    const [inviteMounted, setInviteMounted] = useState(false);
+    const [inviteVisible, setInviteVisible] = useState(false);
+    const inviteFadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     /** The current view opts out of the floating orb. */
     const [orbSuppressed, setOrbSuppressed] = useState(false);
     /** Mini chat overlay toggled by clicking the orb. */
@@ -268,7 +275,13 @@ export function AgentStatusOrb() {
 
     useEffect(() => subscribeOrbSuppressed(setOrbSuppressed), []);
 
-    useEffect(() => () => clearTimeout(snapTimerRef.current), []);
+    useEffect(
+        () => () => {
+            clearTimeout(snapTimerRef.current);
+            clearTimeout(inviteFadeTimerRef.current);
+        },
+        []
+    );
 
     // The orb hides without unmounting, so mini-chat state outlives it. Left alone,
     // `miniOpen` stays true and the mini resurfaces unprompted as soon as the orb
@@ -289,6 +302,44 @@ export function AgentStatusOrb() {
 
     useAmbientCopilotPresence(!orbHidden);
 
+    const dragging = dragPos !== null && !snapping;
+    // Active states keep the pill visible the whole time. Idle offers the invitation
+    // input, which rides in with the pointer and fades out behind it — except while it
+    // is being written in, where the pointer is free to wander off.
+    // While the mini chat is open it replaces both.
+    // Also gate on `snapping`: during the snap-to-anchor animation `dragging` is
+    // intentionally false (so the CSS transition runs), but `anchor` isn't committed
+    // until the snap timer fires — showing the invite/label meanwhile would open the
+    // mini chat at the stale anchor. Keep them hidden until the orb settles.
+    const showInvite =
+        !orbHidden &&
+        status?.state === "idle" &&
+        !dragging &&
+        !snapping &&
+        !miniOpen &&
+        (hovered || inviteFocused || inviteText.length > 0);
+
+    // Removing a focused input fires no blur, so the pin would outlive the box it
+    // belongs to and reopen it with the pointer nowhere near.
+    useEffect(() => {
+        if (!showInvite) {
+            setInviteFocused(false);
+        }
+    }, [showInvite]);
+
+    // Mount a frame before turning visible so the transition has an opacity to leave from,
+    // and hold the box in the tree until the fade-out has run.
+    useEffect(() => {
+        clearTimeout(inviteFadeTimerRef.current);
+        if (showInvite) {
+            setInviteMounted(true);
+            const frame = requestAnimationFrame(() => setInviteVisible(true));
+            return () => cancelAnimationFrame(frame);
+        }
+        setInviteVisible(false);
+        inviteFadeTimerRef.current = setTimeout(() => setInviteMounted(false), INVITE_FADE_MS);
+    }, [showInvite]);
+
     if (orbHidden) {
         return null;
     }
@@ -296,16 +347,6 @@ export function AgentStatusOrb() {
     const state = status.state;
     // Idle has nothing to report, so the tooltip falls back to the bare product name.
     const label = state === "idle" ? undefined : activeStateLabel(status);
-    const dragging = dragPos !== null && !snapping;
-    // Active states keep the pill visible the whole time. Idle shows the
-    // invitation input; dismissing only collapses it into the orb — hovering
-    // the orb expands it again, so it is never more than one hover away.
-    // While the mini chat is open it replaces both.
-    // Also gate on `snapping`: during the snap-to-anchor animation `dragging` is
-    // intentionally false (so the CSS transition runs), but `anchor` isn't committed
-    // until the snap timer fires — showing the invite/label meanwhile would open the
-    // mini chat at the stale anchor. Keep them hidden until the orb settles.
-    const showInvite = state === "idle" && !dragging && !snapping && !miniOpen && (!inviteDismissed || hovered);
     const showLabel = !dragging && !snapping && !showInvite && state !== "idle" && !miniOpen;
 
     // Typing into the invite starts the conversation in the mini chat — every
@@ -431,23 +472,24 @@ export function AgentStatusOrb() {
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
-            {showInvite && (
-                <InviteBox>
-                    <InviteInput
-                        value={inviteText}
-                        onChange={(event) => setInviteText(event.target.value)}
-                        onKeyDown={(event) => {
-                            if (event.key === "Enter") {
-                                submitInvite();
-                            }
-                        }}
-                        placeholder="How can I help?"
-                        aria-label="Message WSO2 Integration Intelligence"
-                    />
-                    <InviteDismiss title="Hide" aria-label="Hide the WSO2 Integration Intelligence prompt" onClick={() => setInviteDismissed(true)}>
-                        ✕
-                    </InviteDismiss>
-                </InviteBox>
+            {inviteMounted && (
+                <InviteHitBridge>
+                    <InviteBox visible={inviteVisible}>
+                        <InviteInput
+                            value={inviteText}
+                            onChange={(event) => setInviteText(event.target.value)}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    submitInvite();
+                                }
+                            }}
+                            onFocus={() => setInviteFocused(true)}
+                            onBlur={() => setInviteFocused(false)}
+                            placeholder="How can I help?"
+                            aria-label="Message WSO2 Integration Intelligence"
+                        />
+                    </InviteBox>
+                </InviteHitBridge>
             )}
             {showLabel && label && <LabelPill onClick={() => setMiniOpen(true)}>{label}</LabelPill>}
             <OrbButton
