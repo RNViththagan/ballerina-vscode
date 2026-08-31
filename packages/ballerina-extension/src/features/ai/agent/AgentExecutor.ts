@@ -51,6 +51,7 @@ import {
     stripAnalysisFromCompactionBlocks,
     COMPACTION_BLOCK_PREFIX,
 } from '@wso2/copilot-utilities/context-management';
+import { sanitizeMessages } from './resilience';
 import { getLoginMethod } from '../../../utils/ai/auth';
 import {
     sendTelemetryEvent,
@@ -450,6 +451,9 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                     if (cleanedCompactionSummary) {
                         stripAnalysisFromCompactionBlocks(stepMessages);
                     }
+                    // Anthropic requires tool_use.input to be an object; an unparseable streamed
+                    // input stays a string on the tool-call part and 400s every later request.
+                    sanitizeMessages(stepMessages);
                     return { messages: addCacheControlToMessages({ messages: stepMessages, model }) };
                 },
 
