@@ -146,7 +146,7 @@ describe("repairToolCallInputs", () => {
 
     it("ignores messages with non-array content and tolerates empty input", () => {
         expect(repairToolCallInputs([])).toBe(0);
-        expect(repairToolCallInputs(undefined as any)).toBe(0);
+        expect(repairToolCallInputs(undefined)).toBe(0);
         expect(repairToolCallInputs([{ role: "user", content: "hi" }])).toBe(0);
     });
 

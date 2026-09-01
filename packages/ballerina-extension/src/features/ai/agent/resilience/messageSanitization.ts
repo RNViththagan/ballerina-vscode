@@ -47,7 +47,7 @@ function coerceInput(raw: string): Record<string, unknown> {
  * `tool-call` part. Anthropic requires `tool_use.input` to be an object and rejects replay with
  * `tool_use.input: Input should be an object`, which bricks the thread on every later request.
  */
-export function repairToolCallInputs(messages: any[]): number {
+export function repairToolCallInputs(messages: any[] | null | undefined): number {
     let repaired = 0;
     for (const message of messages ?? []) {
         if (!Array.isArray(message?.content)) {
@@ -70,6 +70,6 @@ export function repairToolCallInputs(messages: any[]): number {
  * Run every repair pass over a message history, in place, so it stays provider-valid. Call before
  * sending history to the provider (prepareStep, history load). Add new passes here as needed.
  */
-export function sanitizeMessages(messages: any[]): void {
+export function sanitizeMessages(messages: any[] | null | undefined): void {
     repairToolCallInputs(messages);
 }
