@@ -31,6 +31,7 @@ export const Container = styled.div({
     display: "flex",
     flexDirection: "column",
     gap: 10,
+    padding: "0 20px 20px",
 });
 
 export const AddPanel = styled.div({
