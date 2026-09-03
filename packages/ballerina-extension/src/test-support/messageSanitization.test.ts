@@ -19,12 +19,15 @@
 /**
  * @jest-environment node
  *
- * Guards the tool-call input sanitizer: when a streamed tool call's JSON is invalid, the AI SDK
- * keeps the raw text as a string on the `tool-call` part, and Anthropic rejects every later
- * request in the thread with `tool_use.input: Input should be an object`. The sanitizer coerces
- * such inputs to objects before the history is sent.
+ * Guards the tool-call input sanitizer. When a streamed tool call's JSON is invalid the AI SDK
+ * keeps the raw text as a string on the `tool-call` part; when it parses but fails the tool's
+ * schema, the parsed array/null/number is kept instead. Anthropic rejects every later request in
+ * the thread with `tool_use.input: Input should be an object`. The sanitizer coerces such inputs
+ * to objects before the history is sent, tells the model the call never ran, and never writes
+ * into the history it was given.
  */
 
+import type { AssistantModelMessage, ModelMessage, ToolCallPart } from "ai";
 import {
     repairToolCallInputs,
     sanitizeMessages,
@@ -35,152 +38,203 @@ import {
 const MALFORMED_INPUT =
     '{"file_path": "types.bal", "edits": [{"old_string": "a", "new_string">"b"}]}';
 
-const assistantWithMalformedCall = () => ({
-    role: "assistant",
+function assistantCalling(toolName: string, input: unknown, toolCallId = "call_1"): AssistantModelMessage {
+    return {
+        role: "assistant",
+        content: [
+            { type: "text", text: "Editing the file." },
+            { type: "tool-call", toolCallId, toolName, input },
+        ],
+    };
+}
+
+const toolResultFor = (toolCallId: string): ModelMessage => ({
+    role: "tool",
     content: [
-        { type: "text", text: "Editing the file." },
         {
-            type: "tool-call",
-            toolCallId: "call_1",
+            type: "tool-result",
+            toolCallId,
             toolName: "file_batch_edit",
-            input: MALFORMED_INPUT, // string — the bug
+            output: { type: "error-text", value: "Invalid JSON" },
         },
     ],
 });
 
+function toolCallAt(message: ModelMessage, index: number): ToolCallPart {
+    if (message.role !== "assistant" || typeof message.content === "string") {
+        throw new Error("expected an assistant message with parts");
+    }
+    const part = message.content[index];
+    if (part.type !== "tool-call") {
+        throw new Error(`expected a tool-call part at ${index}, got ${part.type}`);
+    }
+    return part;
+}
+
+const reminders = (messages: ModelMessage[]) =>
+    messages.filter(
+        (m) => m.role === "user" && typeof m.content === "string" && m.content.includes("<system-reminder>")
+    );
+
 describe("repairToolCallInputs", () => {
     it("coerces an unparseable string input to an empty object", () => {
-        const messages = [assistantWithMalformedCall()];
-        const repaired = repairToolCallInputs(messages);
-        const call = (messages[0].content as any[])[1];
+        const { messages, repaired } = repairToolCallInputs([assistantCalling("file_batch_edit", MALFORMED_INPUT)]);
+
         expect(repaired).toBe(1);
-        expect(typeof call.input).toBe("object");
-        expect(call.input).toEqual({});
+        expect(toolCallAt(messages[0], 1).input).toEqual({});
     });
 
     it("parses a well-formed JSON string input into the object it represents", () => {
-        const messages = [
-            {
-                role: "assistant",
-                content: [
-                    {
-                        type: "tool-call",
-                        toolCallId: "c",
-                        toolName: "t",
-                        input: '{"file_path":"main.bal","edits":[]}',
-                    },
-                ],
-            },
-        ];
-        const repaired = repairToolCallInputs(messages);
+        const { messages, repaired } = repairToolCallInputs([
+            assistantCalling("t", '{"file_path":"main.bal","edits":[]}'),
+        ]);
+
         expect(repaired).toBe(1);
-        expect((messages[0].content as any[])[0].input).toEqual({
-            file_path: "main.bal",
-            edits: [],
-        });
+        expect(toolCallAt(messages[0], 1).input).toEqual({ file_path: "main.bal", edits: [] });
     });
 
     it("coerces a string truncated mid-JSON to {} (output-token cap on large writes)", () => {
-        // The common production trigger: a large file write whose tool-call JSON is cut off
-        // at the 8192 output-token limit, leaving unparseable text.
-        const messages = [
-            {
-                role: "assistant",
-                content: [
-                    {
-                        type: "tool-call",
-                        toolCallId: "c",
-                        toolName: "file_batch_edit",
-                        input: '{"file_path":"main.bal","content":"import ballerina/ht',
-                    },
-                ],
-            },
-        ];
-        expect(repairToolCallInputs(messages)).toBe(1);
-        expect((messages[0].content as any[])[0].input).toEqual({});
+        const { messages } = repairToolCallInputs([
+            assistantCalling("file_batch_edit", '{"file_path":"main.bal","content":"import ballerina/ht'),
+        ]);
+
+        expect(toolCallAt(messages[0], 1).input).toEqual({});
     });
 
-    it("coerces an empty string input to {}", () => {
-        const messages = [
-            {
-                role: "assistant",
-                content: [{ type: "tool-call", toolCallId: "c", toolName: "t", input: "" }],
-            },
-        ];
-        expect(repairToolCallInputs(messages)).toBe(1);
-        expect((messages[0].content as any[])[0].input).toEqual({});
-    });
+    it.each([
+        ["an empty string", ""],
+        ["a JSON array string", "[1,2,3]"],
+        ["an actual array, the SDK's shape when the JSON parsed but failed the schema", [1, 2]],
+        ["null", null],
+        ["a number", 42],
+        ["undefined", undefined],
+    ])("coerces %s to {}", (_label, input) => {
+        const { messages, repaired } = repairToolCallInputs([assistantCalling("t", input)]);
 
-    it("coerces a JSON array string to {} (provider requires an object, not an array)", () => {
-        const messages = [
-            {
-                role: "assistant",
-                content: [{ type: "tool-call", toolCallId: "c", toolName: "t", input: "[1,2,3]" }],
-            },
-        ];
-        repairToolCallInputs(messages);
-        expect((messages[0].content as any[])[0].input).toEqual({});
+        expect(repaired).toBe(1);
+        expect(toolCallAt(messages[0], 1).input).toEqual({});
     });
 
     it("leaves a valid object input untouched and is a no-op (returns 0)", () => {
         const original = { file_path: "main.bal", edits: [{ old_string: "a", new_string: "b" }] };
-        const messages = [
-            {
-                role: "assistant",
-                content: [{ type: "tool-call", toolCallId: "c", toolName: "t", input: original }],
-            },
-        ];
-        const repaired = repairToolCallInputs(messages);
+        const source = [assistantCalling("t", original)];
+
+        const { messages, repaired } = repairToolCallInputs(source);
+
         expect(repaired).toBe(0);
-        expect((messages[0].content as any[])[0].input).toBe(original);
+        expect(toolCallAt(messages[0], 1).input).toBe(original);
+        expect(messages[0]).toBe(source[0]);
     });
 
-    it("repairs multiple malformed calls across messages and counts them", () => {
-        const messages = [
-            assistantWithMalformedCall(),
+    it("never writes into the history it was given", () => {
+        const source = [assistantCalling("file_batch_edit", MALFORMED_INPUT), toolResultFor("call_1")];
+
+        const { messages } = repairToolCallInputs(source);
+
+        expect(toolCallAt(source[0], 1).input).toBe(MALFORMED_INPUT);
+        expect(messages[0]).not.toBe(source[0]);
+        expect(messages[1]).toBe(source[1]);
+    });
+
+    it("tells the model the call never ran, after the tool result it is paired with", () => {
+        const { messages } = repairToolCallInputs([
+            assistantCalling("file_batch_edit", MALFORMED_INPUT),
+            toolResultFor("call_1"),
             { role: "user", content: "continue" },
-            assistantWithMalformedCall(),
-        ];
-        expect(repairToolCallInputs(messages)).toBe(2);
+        ]);
+
+        expect(messages.map((m) => m.role)).toEqual(["assistant", "tool", "user", "user"]);
+        const reminder = messages[2];
+        expect(reminder.content).toContain("<system-reminder>");
+        expect(reminder.content).toContain("`file_batch_edit`");
+        expect(reminder.content).toContain("NOT performed");
+        expect(messages[3].content).toBe("continue");
     });
 
-    it("ignores messages with non-array content and tolerates empty input", () => {
-        expect(repairToolCallInputs([])).toBe(0);
-        expect(repairToolCallInputs(undefined)).toBe(0);
-        expect(repairToolCallInputs([{ role: "user", content: "hi" }])).toBe(0);
+    it("places the reminder right after the assistant message when no tool result follows", () => {
+        const { messages } = repairToolCallInputs([
+            assistantCalling("t", MALFORMED_INPUT),
+            { role: "user", content: "continue" },
+        ]);
+
+        expect(messages.map((m) => m.role)).toEqual(["assistant", "user", "user"]);
+        expect(reminders(messages)).toHaveLength(1);
+    });
+
+    it("issues one reminder per assistant message, naming every dropped call", () => {
+        const twoCalls: AssistantModelMessage = {
+            role: "assistant",
+            content: [
+                { type: "tool-call", toolCallId: "a", toolName: "file_batch_edit", input: "" },
+                { type: "tool-call", toolCallId: "b", toolName: "file_write", input: [] },
+            ],
+        };
+
+        const { messages, repaired } = repairToolCallInputs([twoCalls]);
+
+        expect(repaired).toBe(2);
+        const [reminder] = reminders(messages);
+        expect(reminders(messages)).toHaveLength(1);
+        expect(reminder.content).toContain("`file_batch_edit`, `file_write`");
+        expect(reminder.content).toContain("Those calls were NOT performed");
+    });
+
+    it("repairs malformed calls across messages and counts them", () => {
+        const { repaired } = repairToolCallInputs([
+            assistantCalling("t", MALFORMED_INPUT),
+            { role: "user", content: "continue" },
+            assistantCalling("t", MALFORMED_INPUT, "call_2"),
+        ]);
+
+        expect(repaired).toBe(2);
+    });
+
+    it("adds no reminder to a clean history", () => {
+        const { messages } = repairToolCallInputs([assistantCalling("t", { ok: 1 }), toolResultFor("call_1")]);
+
+        expect(reminders(messages)).toHaveLength(0);
+    });
+
+    it("tolerates empty, missing and part-less input", () => {
+        expect(repairToolCallInputs([]).repaired).toBe(0);
+        expect(repairToolCallInputs(undefined).repaired).toBe(0);
+        expect(repairToolCallInputs(null).messages).toEqual([]);
+        expect(repairToolCallInputs([{ role: "user", content: "hi" }]).repaired).toBe(0);
+        expect(repairToolCallInputs([{ role: "assistant", content: "plain text" }]).repaired).toBe(0);
     });
 
     it("leaves non-tool-call parts untouched", () => {
-        const messages = [
+        const source: ModelMessage[] = [
             {
                 role: "assistant",
                 content: [
                     { type: "text", text: "some string content" },
-                    { type: "tool-result", toolCallId: "c", toolName: "t", output: "raw" },
+                    { type: "tool-call", toolCallId: "c", toolName: "t", input: "" },
                 ],
             },
         ];
-        expect(repairToolCallInputs(messages)).toBe(0);
-        expect((messages[0].content as any[])[0].text).toBe("some string content");
-        expect((messages[0].content as any[])[1].output).toBe("raw");
+
+        const { messages } = repairToolCallInputs(source);
+
+        const first = (messages[0] as AssistantModelMessage).content[0];
+        expect(first).toEqual({ type: "text", text: "some string content" });
     });
 });
 
 describe("sanitizeMessages", () => {
-    it("runs the repair passes over the history in place", () => {
-        const messages = [assistantWithMalformedCall()];
-        sanitizeMessages(messages);
-        expect((messages[0].content as any[])[1].input).toEqual({});
+    it("returns the repaired history and how many calls were dropped", () => {
+        const { messages, repaired } = sanitizeMessages([assistantCalling("t", MALFORMED_INPUT)]);
+
+        expect(repaired).toBe(1);
+        expect(toolCallAt(messages[0], 1).input).toEqual({});
     });
 
-    it("leaves a clean history untouched", () => {
-        const messages = [
-            {
-                role: "assistant",
-                content: [{ type: "tool-call", toolCallId: "c", toolName: "t", input: { ok: 1 } }],
-            },
-        ];
-        sanitizeMessages(messages);
-        expect((messages[0].content as any[])[0].input).toEqual({ ok: 1 });
+    it("hands a clean history back unchanged", () => {
+        const source = [assistantCalling("t", { ok: 1 })];
+
+        const { messages, repaired } = sanitizeMessages(source);
+
+        expect(repaired).toBe(0);
+        expect(messages).toEqual(source);
     });
 });

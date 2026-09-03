@@ -451,10 +451,10 @@ export class AgentExecutor extends AICommandExecutor<GenerateAgentCodeRequest> {
                     if (cleanedCompactionSummary) {
                         stripAnalysisFromCompactionBlocks(stepMessages);
                     }
-                    // Anthropic requires tool_use.input to be an object; an unparseable streamed
-                    // input stays a string on the tool-call part and 400s every later request.
-                    sanitizeMessages(stepMessages);
-                    return { messages: addCacheControlToMessages({ messages: stepMessages, model }) };
+                    // Anthropic requires tool_use.input to be an object; an unparseable or schema-invalid
+                    // streamed input is left as a non-object on the tool-call part and 400s every later request.
+                    const { messages } = sanitizeMessages(stepMessages);
+                    return { messages: addCacheControlToMessages({ messages, model }) };
                 },
 
                 // Emit per-step token usage for context usage widget + observability
