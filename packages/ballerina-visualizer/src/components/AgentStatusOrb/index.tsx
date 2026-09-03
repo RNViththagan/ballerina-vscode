@@ -253,6 +253,8 @@ export function AgentStatusOrb() {
     const [status, setStatus] = useState<AgentRunStatus | null>(null);
     const statusRef = useRef<AgentRunStatus | null>(null);
     const [hovered, setHovered] = useState(false);
+    /** Tab-to-orb has no hover, so this is what lets the keyboard reach the invite. */
+    const [orbFocused, setOrbFocused] = useState(false);
     const [anchor, setAnchor] = useState<Anchor>(loadAnchor);
     /** Orb top-left in px while dragging/snapping; null when docked at an anchor. */
     const [dragPos, setDragPos] = useState<{ x: number; y: number } | null>(null);
@@ -310,6 +312,7 @@ export function AgentStatusOrb() {
             setMiniOpen(false);
             miniPromptRef.current = undefined;
             setHovered(false);
+            setOrbFocused(false);
         }
     }, [orbHidden]);
 
@@ -322,22 +325,30 @@ export function AgentStatusOrb() {
     const dragging = dragPos !== null && !snapping;
     // Active states keep the pill visible the whole time. Idle keeps the invitation input
     // in the tree and only ever fades it, so the transition always has a start value and a
-    // focused input is never pulled out from under the keyboard. Hover brings it in; focus
-    // or an unsent draft holds it while the pointer wanders. The mini chat replaces it, and
-    // it stays hidden mid-drag and mid-snap: `anchor` isn't committed until the snap timer
-    // fires, so showing it earlier would open the mini chat at the stale anchor.
+    // focused input is never pulled out from under the keyboard. Hover or keyboard focus on
+    // the orb brings it in; focus in the input or an unsent draft holds it while the pointer
+    // wanders. The mini chat replaces it, and it stays hidden mid-drag and mid-snap: `anchor`
+    // isn't committed until the snap timer fires, so showing it earlier would open the mini
+    // chat at the stale anchor.
     const inviteHosted = !orbHidden && status?.state === "idle";
     const inviteVisible =
-        inviteHosted && !dragging && !snapping && !miniOpen && (hovered || inviteFocused || inviteText.length > 0);
+        inviteHosted &&
+        !dragging &&
+        !snapping &&
+        !miniOpen &&
+        (hovered || orbFocused || inviteFocused || inviteText.length > 0);
 
-    // The input unmounts here without ever blurring, and a draft left behind would hold the
-    // box open the moment the orb came back with the pointer nowhere near it.
+    // A draft left behind when the orb hides, a run starts or the mini chat takes over would
+    // hold the box open the moment it came back with the pointer nowhere near it. In the first
+    // two cases the input also unmounts without ever blurring.
     useEffect(() => {
-        if (!inviteHosted) {
+        if (!inviteHosted || miniOpen) {
             setInviteText("");
+        }
+        if (!inviteHosted) {
             setInviteFocused(false);
         }
-    }, [inviteHosted]);
+    }, [inviteHosted, miniOpen]);
 
     if (orbHidden) {
         return null;
@@ -514,6 +525,8 @@ export function AgentStatusOrb() {
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
+                onFocus={() => setOrbFocused(true)}
+                onBlur={() => setOrbFocused(false)}
                 title={label ? `WSO2 Integration Intelligence — ${label}` : "WSO2 Integration Intelligence"}
                 aria-label={label ? `WSO2 Integration Intelligence: ${label}. Click to open the mini chat, double-click for the chat panel.` : "Click to open the WSO2 Integration Intelligence mini chat, double-click for the chat panel"}
             >

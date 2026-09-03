@@ -92,6 +92,7 @@ describe("AgentStatusOrb idle invite", () => {
     const bridge = () => box().parentElement as HTMLElement;
     const clearButton = () =>
         container.querySelector('button[aria-label="Clear the message"]') as HTMLButtonElement | null;
+    const orb = () => wrapper().querySelector(":scope > button") as HTMLButtonElement;
 
     function fire(target: EventTarget, event: Event): void {
         act(() => {
@@ -263,5 +264,39 @@ describe("AgentStatusOrb idle invite", () => {
         expect(invite()!.value).toBe("");
         expect(document.activeElement).not.toBe(invite());
         expect(opacity()).toBe("0");
+    });
+
+    it("wipes the draft when the mini chat takes over, so nothing resurfaces when it closes", () => {
+        hover();
+        focusInvite();
+        type("stale draft");
+
+        // Clicking the orb moves focus onto it; the mini chat then takes it from there.
+        act(() => orb().focus());
+        click(orb());
+        expect(opacity()).toBe("0");
+        act(() => orb().blur());
+        unhover();
+        click(orb());
+
+        expect(invite()!.value).toBe("");
+        expect(opacity()).toBe("0");
+    });
+
+    it("reveals the invite while the orb has keyboard focus", () => {
+        act(() => orb().focus());
+        expect(opacity()).toBe("1");
+
+        act(() => orb().blur());
+
+        expect(opacity()).toBe("0");
+    });
+
+    it("keeps the invite when focus moves from the orb into the input", () => {
+        act(() => orb().focus());
+
+        focusInvite();
+
+        expect(opacity()).toBe("1");
     });
 });
