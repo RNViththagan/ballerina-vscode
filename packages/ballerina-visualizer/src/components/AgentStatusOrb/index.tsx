@@ -142,19 +142,25 @@ const LabelPill = styled.div`
     cursor: pointer;
 `;
 
+interface InviteVisibility {
+    visible: boolean;
+}
+
 /**
  * Carries the box's hit area across the gap the wrapper leaves untouchable, so a pointer
  * travelling from the orb to the input never counts as having left the widget. The negative
- * margin hands the padding back to the layout, leaving the box where it was.
+ * margin hands the padding back to the layout, leaving the box where it was. Only while the
+ * box is showing: hidden, it must neither catch a hover nor swallow a click meant for the
+ * diagram beneath.
  */
-const InviteHitBridge = styled.div`
-    pointer-events: auto;
+const InviteHitBridge = styled.div<InviteVisibility>`
     display: flex;
     padding: ${WIDGET_GAP}px;
     margin: -${WIDGET_GAP}px;
+    pointer-events: ${(props: InviteVisibility) => (props.visible ? "auto" : "none")};
 `;
 
-const InviteBox = styled.div<{ visible: boolean }>`
+const InviteBox = styled.div<InviteVisibility>`
     display: flex;
     align-items: center;
     gap: 4px;
@@ -163,11 +169,31 @@ const InviteBox = styled.div<{ visible: boolean }>`
     border-radius: 14px;
     padding: 5px 6px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
-    opacity: ${(props: { visible: boolean }) => (props.visible ? 1 : 0)};
-    transform: translateX(${(props: { visible: boolean }) => (props.visible ? "0" : "6px")});
-    transition: opacity ${INVITE_FADE_MS}ms ease, transform ${INVITE_FADE_MS}ms ease;
+    opacity: ${(props: InviteVisibility) => (props.visible ? 1 : 0)};
+    transform: translateX(${(props: InviteVisibility) => (props.visible ? "0" : "6px")});
+    visibility: ${(props: InviteVisibility) => (props.visible ? "visible" : "hidden")};
+    /* visibility waits for the fade-out so the box leaves the tab order only once it is gone. */
+    transition:
+        opacity ${INVITE_FADE_MS}ms ease,
+        transform ${INVITE_FADE_MS}ms ease,
+        visibility 0s linear ${(props: InviteVisibility) => (props.visible ? 0 : INVITE_FADE_MS)}ms;
     @media (prefers-reduced-motion: reduce) {
         transition: none;
+    }
+`;
+
+const InviteClear = styled.button`
+    display: flex;
+    align-items: center;
+    background: transparent;
+    border: none;
+    color: var(--vscode-descriptionForeground);
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 4px;
+    &:hover {
+        color: var(--vscode-foreground);
+        background: var(--vscode-toolbar-hoverBackground);
     }
 `;
 
@@ -235,10 +261,6 @@ export function AgentStatusOrb() {
     const snapTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const [inviteText, setInviteText] = useState("");
     const [inviteFocused, setInviteFocused] = useState(false);
-    /** Rendered — true through the fade-out, after the invite is no longer wanted. */
-    const [inviteMounted, setInviteMounted] = useState(false);
-    const [inviteVisible, setInviteVisible] = useState(false);
-    const inviteFadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     /** The current view opts out of the floating orb. */
     const [orbSuppressed, setOrbSuppressed] = useState(false);
     /** Mini chat overlay toggled by clicking the orb. */
@@ -275,13 +297,7 @@ export function AgentStatusOrb() {
 
     useEffect(() => subscribeOrbSuppressed(setOrbSuppressed), []);
 
-    useEffect(
-        () => () => {
-            clearTimeout(snapTimerRef.current);
-            clearTimeout(inviteFadeTimerRef.current);
-        },
-        []
-    );
+    useEffect(() => () => clearTimeout(snapTimerRef.current), []);
 
     // The orb hides without unmounting, so mini-chat state outlives it. Left alone,
     // `miniOpen` stays true and the mini resurfaces unprompted as soon as the orb
@@ -293,6 +309,7 @@ export function AgentStatusOrb() {
         if (orbHidden) {
             setMiniOpen(false);
             miniPromptRef.current = undefined;
+            setHovered(false);
         }
     }, [orbHidden]);
 
@@ -303,42 +320,24 @@ export function AgentStatusOrb() {
     useAmbientCopilotPresence(!orbHidden);
 
     const dragging = dragPos !== null && !snapping;
-    // Active states keep the pill visible the whole time. Idle offers the invitation
-    // input, which rides in with the pointer and fades out behind it — except while it
-    // is being written in, where the pointer is free to wander off.
-    // While the mini chat is open it replaces both.
-    // Also gate on `snapping`: during the snap-to-anchor animation `dragging` is
-    // intentionally false (so the CSS transition runs), but `anchor` isn't committed
-    // until the snap timer fires — showing the invite/label meanwhile would open the
-    // mini chat at the stale anchor. Keep them hidden until the orb settles.
-    const showInvite =
-        !orbHidden &&
-        status?.state === "idle" &&
-        !dragging &&
-        !snapping &&
-        !miniOpen &&
-        (hovered || inviteFocused || inviteText.length > 0);
+    // Active states keep the pill visible the whole time. Idle keeps the invitation input
+    // in the tree and only ever fades it, so the transition always has a start value and a
+    // focused input is never pulled out from under the keyboard. Hover brings it in; focus
+    // or an unsent draft holds it while the pointer wanders. The mini chat replaces it, and
+    // it stays hidden mid-drag and mid-snap: `anchor` isn't committed until the snap timer
+    // fires, so showing it earlier would open the mini chat at the stale anchor.
+    const inviteHosted = !orbHidden && status?.state === "idle";
+    const inviteVisible =
+        inviteHosted && !dragging && !snapping && !miniOpen && (hovered || inviteFocused || inviteText.length > 0);
 
-    // Removing a focused input fires no blur, so the pin would outlive the box it
-    // belongs to and reopen it with the pointer nowhere near.
+    // The input unmounts here without ever blurring, and a draft left behind would hold the
+    // box open the moment the orb came back with the pointer nowhere near it.
     useEffect(() => {
-        if (!showInvite) {
+        if (!inviteHosted) {
+            setInviteText("");
             setInviteFocused(false);
         }
-    }, [showInvite]);
-
-    // Mount a frame before turning visible so the transition has an opacity to leave from,
-    // and hold the box in the tree until the fade-out has run.
-    useEffect(() => {
-        clearTimeout(inviteFadeTimerRef.current);
-        if (showInvite) {
-            setInviteMounted(true);
-            const frame = requestAnimationFrame(() => setInviteVisible(true));
-            return () => cancelAnimationFrame(frame);
-        }
-        setInviteVisible(false);
-        inviteFadeTimerRef.current = setTimeout(() => setInviteMounted(false), INVITE_FADE_MS);
-    }, [showInvite]);
+    }, [inviteHosted]);
 
     if (orbHidden) {
         return null;
@@ -347,17 +346,18 @@ export function AgentStatusOrb() {
     const state = status.state;
     // Idle has nothing to report, so the tooltip falls back to the bare product name.
     const label = state === "idle" ? undefined : activeStateLabel(status);
-    const showLabel = !dragging && !snapping && !showInvite && state !== "idle" && !miniOpen;
+    const showLabel = !dragging && !snapping && state !== "idle" && !miniOpen;
 
     // Typing into the invite starts the conversation in the mini chat — every
     // orb interaction stays in the ambient surface; the full panel is reached
     // via the mini's maximize button.
-    const submitInvite = () => {
+    const submitInvite = (input: HTMLInputElement) => {
         const text = inviteText.trim();
         if (text) {
             miniPromptRef.current = createMiniChatPrompt(text, { autoSubmit: true });
         }
         setInviteText("");
+        input.blur();
         setMiniChatKey((key) => key + 1);
         setMiniOpen(true);
     };
@@ -472,15 +472,18 @@ export function AgentStatusOrb() {
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
         >
-            {inviteMounted && (
-                <InviteHitBridge>
+            {inviteHosted && (
+                <InviteHitBridge visible={inviteVisible}>
                     <InviteBox visible={inviteVisible}>
                         <InviteInput
                             value={inviteText}
                             onChange={(event) => setInviteText(event.target.value)}
                             onKeyDown={(event) => {
                                 if (event.key === "Enter") {
-                                    submitInvite();
+                                    submitInvite(event.currentTarget);
+                                } else if (event.key === "Escape") {
+                                    setInviteText("");
+                                    event.currentTarget.blur();
                                 }
                             }}
                             onFocus={() => setInviteFocused(true)}
@@ -488,6 +491,18 @@ export function AgentStatusOrb() {
                             placeholder="How can I help?"
                             aria-label="Message WSO2 Integration Intelligence"
                         />
+                        {inviteText.length > 0 && (
+                            <InviteClear
+                                type="button"
+                                title="Clear"
+                                aria-label="Clear the message"
+                                // Keep focus in the input so clearing never ends the typing.
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => setInviteText("")}
+                            >
+                                <span className="codicon codicon-close" />
+                            </InviteClear>
+                        )}
                     </InviteBox>
                 </InviteHitBridge>
             )}
