@@ -89,7 +89,7 @@ export function CreateProjectChooser({
 
     return (
         <CreateFlowShell
-            title="Create Integration Project"
+            title="Create Project"
             subtitle="A project helps you organize your integrations and libraries."
             onBack={onBack}
         >
