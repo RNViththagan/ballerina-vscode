@@ -399,7 +399,7 @@ const AIChat: React.FC = () => {
 
     const [migrationSession, setMigrationSession] = useState<ActiveMigrationSession | null>(null);
     const [isMigrationEnhancementRunning, setIsMigrationEnhancementRunning] = useState(false);
-    const [usage, setUsage] = useState<{ remainingUsagePercentage: number; resetsIn: number; orgId?: string; alreadyRequested?: boolean } | null>(null);
+    const [usage, setUsage] = useState<{ remainingUsagePercentage: number; resetsIn: number; resetsAtMs?: number; orgId?: string; alreadyRequested?: boolean } | null>(null);
     const [isUsageExceeded, setIsUsageExceeded] = useState(false);
     const [showQuotaDialog, setShowQuotaDialog] = useState(false);
     const [quotaRequestSubmitting, setQuotaRequestSubmitting] = useState(false);
@@ -578,9 +578,8 @@ const AIChat: React.FC = () => {
     }, []);
 
 
-    const formatResetsAt = (seconds: number): string => {
-        const resetDate = new Date(Date.now() + seconds * 1000);
-        return resetDate.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+    const formatResetsAt = (resetsAtMs: number): string => {
+        return new Date(resetsAtMs).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     };
 
     const formatResetsInExact = (seconds: number): string => {
@@ -598,7 +597,10 @@ const AIChat: React.FC = () => {
         try {
             const result = await rpcClient.getAiPanelRpcClient().getUsage();
             if (result) {
-                setUsage(result);
+                setUsage({
+                    ...result,
+                    resetsAtMs: result.resetsIn !== -1 ? Date.now() + result.resetsIn * 1000 : undefined,
+                });
                 setIsUsageExceeded(result.resetsIn !== -1 && result.remainingUsagePercentage < USAGE_EXCEEDED_THRESHOLD_PERCENT);
             } else {
                 setUsage(null);
@@ -2894,7 +2896,7 @@ const AIChat: React.FC = () => {
                             <span className="codicon codicon-warning" role="img" aria-hidden="true" />
                             <span>
                                 You've reached your usage limit.
-                                {usage && usage.resetsIn !== -1 ? ` Resets ${formatResetsAt(usage.resetsIn)}.` : ""}
+                                {usage?.resetsAtMs != null ? ` Resets ${formatResetsAt(usage.resetsAtMs)}.` : ""}
                                 {usage?.alreadyRequested
                                     ? <>{" "}Your request for additional quota has been submitted. Need help in the meantime? Reach out to us on <a href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">Discord</a>.</>
                                     : <>{" "}<a href="#" onClick={(e) => { e.preventDefault(); setShowQuotaDialog(true); }}>Request additional quota</a>.</>
