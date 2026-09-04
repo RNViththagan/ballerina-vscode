@@ -578,13 +578,9 @@ const AIChat: React.FC = () => {
     }, []);
 
 
-    const formatResetsIn = (seconds: number): string => {
-        const days = Math.floor(seconds / 86400);
-        if (days >= 1) return `${days} day${days > 1 ? 's' : ''}`;
-        const hours = Math.floor(seconds / 3600);
-        if (hours >= 1) return `${hours} hour${hours > 1 ? 's' : ''}`;
-        const mins = Math.floor(seconds / 60);
-        return `${mins} min${mins > 1 ? 's' : ''}`;
+    const formatResetsAt = (seconds: number): string => {
+        const resetDate = new Date(Date.now() + seconds * 1000);
+        return resetDate.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
     };
 
     const formatResetsInExact = (seconds: number): string => {
@@ -2897,8 +2893,8 @@ const AIChat: React.FC = () => {
                         <UsageLimitNoticeContainer>
                             <span className="codicon codicon-warning" role="img" aria-hidden="true" />
                             <span>
-                                You've reached your Integrator Copilot usage limit
-                                {usage && usage.resetsIn !== -1 ? `, which resets in ${formatResetsIn(usage.resetsIn)}` : ""}.
+                                You've reached your usage limit.
+                                {usage && usage.resetsIn !== -1 ? ` Resets ${formatResetsAt(usage.resetsIn)}.` : ""}
                                 {usage?.alreadyRequested
                                     ? <>{" "}Your request for additional quota has been submitted. Need help in the meantime? Join our <a href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">Discord</a>.</>
                                     : <>{" "}<a href="#" onClick={(e) => { e.preventDefault(); setShowQuotaDialog(true); }}>Request additional quota</a>.</>
