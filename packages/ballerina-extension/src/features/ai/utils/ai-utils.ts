@@ -83,8 +83,9 @@ export function populateHistoryForAgent(chatHistory: any[]): ModelMessage[] {
             });
         }
     }
-    // Keep replayed history provider-valid; the store's own message objects are left as they are.
-    return sanitizeMessages(messages).messages;
+    // Keep replayed history provider-valid (coerce malformed tool-call inputs in place).
+    sanitizeMessages(messages);
+    return messages;
 }
 
 /**
