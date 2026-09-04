@@ -151,7 +151,7 @@ const QuotaRequestDialog: React.FC<QuotaRequestDialogProps> = ({ submitting, err
                     autoFocus
                 />
                 <Notice>
-                    Your WSO2 account email will be included with this request so the team can follow up.
+                    Your account email will be included with this request so the team can follow up.
                 </Notice>
                 {error && <ErrorText role="alert">{error}</ErrorText>}
                 <ButtonContainer>
