@@ -2896,7 +2896,7 @@ const AIChat: React.FC = () => {
                                 You've reached your usage limit.
                                 {usage && usage.resetsIn !== -1 ? ` Resets ${formatResetsAt(usage.resetsIn)}.` : ""}
                                 {usage?.alreadyRequested
-                                    ? <>{" "}Your request for additional quota has been submitted. Need help in the meantime? Join our <a href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">Discord</a>.</>
+                                    ? <>{" "}Your request for additional quota has been submitted. Need help in the meantime? Reach out to us on <a href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">Discord</a>.</>
                                     : <>{" "}<a href="#" onClick={(e) => { e.preventDefault(); setShowQuotaDialog(true); }}>Request additional quota</a>.</>
                                 }
                             </span>
