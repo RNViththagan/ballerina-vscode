@@ -111,7 +111,7 @@ const NO_DRIFT_FOUND = "No drift identified between the code and the documentati
 const DRIFT_CHECK_ERROR = "Failed to check drift between the code and the documentation. Please try again.";
 
 const USAGE_EXCEEDED_THRESHOLD_PERCENT = 3;
-const QUOTA_CONTACT_EMAIL = "support@wso2.com";
+const DISCORD_INVITE_URL = "https://discord.com/invite/wso2";
 
 //TODO: Add better error handling from backend. stream error type and non 200 status codes
 
@@ -639,11 +639,11 @@ const AIChat: React.FC = () => {
                 setShowQuotaDialog(false);
                 await fetchUsage();
             } else {
-                setQuotaRequestError(`Something went wrong. Please try again or email ${QUOTA_CONTACT_EMAIL}.`);
+                setQuotaRequestError("Something went wrong. Please try again.");
             }
         } catch (e) {
             console.error("Failed to submit quota request:", e);
-            setQuotaRequestError(`Something went wrong. Please try again or email ${QUOTA_CONTACT_EMAIL}.`);
+            setQuotaRequestError("Something went wrong. Please try again.");
         } finally {
             setQuotaRequestSubmitting(false);
         }
@@ -2900,7 +2900,7 @@ const AIChat: React.FC = () => {
                                 You've reached your Integrator Copilot usage limit
                                 {usage && usage.resetsIn !== -1 ? `, which resets in ${formatResetsIn(usage.resetsIn)}` : ""}.
                                 {usage?.alreadyRequested
-                                    ? <>{" "}Your request for additional quota has been submitted. Reach us at <a href={`mailto:${QUOTA_CONTACT_EMAIL}`}>{QUOTA_CONTACT_EMAIL}</a>.</>
+                                    ? <>{" "}Your request for additional quota has been submitted. Need help in the meantime? Join our <a href={DISCORD_INVITE_URL} target="_blank" rel="noreferrer">Discord</a>.</>
                                     : <>{" "}<a href="#" onClick={(e) => { e.preventDefault(); setShowQuotaDialog(true); }}>Request additional quota</a>.</>
                                 }
                             </span>
