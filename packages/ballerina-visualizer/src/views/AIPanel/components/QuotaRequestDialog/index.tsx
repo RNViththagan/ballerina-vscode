@@ -141,7 +141,7 @@ const QuotaRequestDialog: React.FC<QuotaRequestDialogProps> = ({ submitting, err
                 aria-describedby="quota-request-desc"
             >
                 <Title id="quota-request-title">Request additional quota</Title>
-                <Text id="quota-request-desc">Let the team know you'd like more Integrator Copilot quota this week.</Text>
+                <Text id="quota-request-desc">Let the team know you'd like more quota this week.</Text>
                 <TextArea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
