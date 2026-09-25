@@ -576,7 +576,10 @@ const FooterInput = styled.input`
     font-size: 13px;
     font-family: var(--vscode-font-family);
     outline: none;
-    &:focus {
+    /* Outranks the webview default focus outline. */
+    &:focus,
+    &:focus-visible {
+        outline: none;
         border-color: var(--vscode-focusBorder);
     }
     &::placeholder {

@@ -224,6 +224,12 @@ const PromptTextArea = styled.textarea`
     overflow-y: auto;
     scrollbar-width: none;
 
+    /* Outranks the webview default focus outline. */
+    &:focus,
+    &:focus-visible {
+        outline: none;
+    }
+
     &::-webkit-scrollbar {
         display: none;
     }
