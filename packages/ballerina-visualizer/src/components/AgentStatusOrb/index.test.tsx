@@ -55,7 +55,7 @@ jest.mock("./CopilotOrb", () => ({ CopilotOrb: (): null => null }));
 jest.mock("./MiniChat", () => ({ MiniChat: (): null => null }));
 
 import { AgentStatusOrb } from "./index";
-import { __resetAgentRunStatusStoreForTests } from "./shared";
+import { __resetAgentRunStatusStoreForTests, ORB_SIZE } from "./shared";
 
 declare global {
     // eslint-disable-next-line no-var
@@ -334,6 +334,38 @@ describe("AgentStatusOrb idle invite", () => {
         act(() => orb().blur());
 
         expect(opacity()).toBe("0");
+    });
+
+    // Idle keeps the hidden invite mounted ahead of the orb, and the drag position is the orb's own;
+    // if the invite kept its layout box it would push the orb ~250px away from the pointer.
+    it("takes the hidden invite out of the flow while the orb is dragged and snapping", () => {
+        const setPointerCapture = HTMLElement.prototype.setPointerCapture;
+        HTMLElement.prototype.setPointerCapture = jest.fn();
+        jest.useFakeTimers();
+        try {
+            const opened = box();
+            const pointer = (type: string, x: number) =>
+                fire(orb(), new MouseEvent(type, { bubbles: true, button: 0, clientX: x, clientY: 300 }));
+            expect(getComputedStyle(bridge()).position).not.toBe("absolute");
+
+            pointer("pointerdown", 400);
+            pointer("pointermove", 500);
+
+            expect(getComputedStyle(bridge()).position).toBe("absolute");
+            expect(wrapper().style.left).toBe(`${500 - ORB_SIZE / 2}px`);
+
+            pointer("pointerup", 500);
+            expect(getComputedStyle(bridge()).position).toBe("absolute");
+
+            act(() => {
+                jest.runOnlyPendingTimers();
+            });
+            expect(getComputedStyle(bridge()).position).not.toBe("absolute");
+            expect(box()).toBe(opened);
+        } finally {
+            jest.useRealTimers();
+            HTMLElement.prototype.setPointerCapture = setPointerCapture;
+        }
     });
 
     it("keeps the invite when focus moves from the orb into the input", () => {
