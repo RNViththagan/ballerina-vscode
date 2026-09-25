@@ -230,6 +230,13 @@ const PromptTextArea = styled.textarea`
         outline: none;
     }
 
+    @media (forced-colors: active) {
+        &:focus-visible {
+            outline: 1px solid Highlight;
+            outline-offset: 1px;
+        }
+    }
+
     &::-webkit-scrollbar {
         display: none;
     }

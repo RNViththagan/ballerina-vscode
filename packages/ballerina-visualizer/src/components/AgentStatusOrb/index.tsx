@@ -222,6 +222,12 @@ const InviteInput = styled.input`
     &:focus-visible {
         outline: none;
     }
+    @media (forced-colors: active) {
+        &:focus-visible {
+            outline: 1px solid Highlight;
+            outline-offset: 1px;
+        }
+    }
     &::placeholder {
         color: var(--vscode-input-placeholderForeground);
     }

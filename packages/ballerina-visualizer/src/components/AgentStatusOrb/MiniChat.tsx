@@ -582,6 +582,12 @@ const FooterInput = styled.input`
         outline: none;
         border-color: var(--vscode-focusBorder);
     }
+    @media (forced-colors: active) {
+        &:focus-visible {
+            outline: 1px solid Highlight;
+            outline-offset: 1px;
+        }
+    }
     &::placeholder {
         color: var(--vscode-input-placeholderForeground);
     }
