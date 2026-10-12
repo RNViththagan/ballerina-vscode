@@ -21,6 +21,7 @@ import { z } from 'zod';
 import * as crypto from "crypto";
 import { CopilotEventHandler } from '../../utils/events';
 import { approvalManager } from '../../state/ApprovalManager';
+import { getCopilotProfile } from '../copilot-profile';
 
 export const CLARIFY_TOOL = "Clarify";
 
@@ -45,12 +46,13 @@ const ClarifyInputSchema = z.object({
 export type ClarifyInput = z.infer<typeof ClarifyInputSchema>;
 
 export function createClarifyTool(eventHandler: CopilotEventHandler) {
+    const profile = getCopilotProfile();
     return tool({
         description: `Use this tool to ask the user clarifying questions when the request is ambiguous at the requirements level — where a wrong assumption would produce an integration the user did not want.
 
 Call this ONLY for genuine requirement gaps. Use smart defaults first:
 
-1. Entry point: Default to HTTP for simple service requests. Ask only when the trigger type is ambiguous and the choice materially affects the design.
+1. Entry point: ${profile.clarifyEntryPointDefault}
 
 2. Storage / external system: Default to in-memory for simple apps. When a category is explicitly required but the specific technology is unspecified, infer from context — otherwise ask.
 

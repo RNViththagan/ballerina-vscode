@@ -60,6 +60,7 @@ import { createClarifyTool, CLARIFY_TOOL } from './tools/clarify';
 import { createSkillTool, SKILL_TOOL_NAME } from './tools/skill-tool';
 import { REGISTERED_SKILLS } from './skills';
 import { getMcpTools } from './mcp';
+import { getProductMode, ProductMode } from '../../../utils/config';
 // TODO(auto-memory): temporarily disabled for this release — restore once the memory feature is refined.
 // import { createSaveMemoryTool, SAVE_MEMORY_TOOL_NAME } from './tools/save-memory';
 // import { createDeleteMemoryTool, DELETE_MEMORY_TOOL_NAME } from './tools/delete-memory';
@@ -139,8 +140,7 @@ export function createToolRegistry(opts: ToolRegistryOptions) {
         ),
         [DIAGNOSTICS_TOOL_NAME]: createDiagnosticsTool(tempProjectPath, eventHandler),
         [TEST_RUNNER_TOOL_NAME]: createTestRunnerTool(tempProjectPath, eventHandler),
-        // Migration source tools — registered only when a source project path is available
-        ...(migrationSourcePath ? {
+        ...(migrationSourcePath && getProductMode() !== ProductMode.AGENT_BUILDER ? {
             [MIGRATION_SOURCE_LIST_TOOL]: createMigrationSourceListTool(eventHandler, migrationSourcePath),
             [MIGRATION_SOURCE_READ_TOOL]: createMigrationSourceReadTool(eventHandler, migrationSourcePath),
         } : {}),
