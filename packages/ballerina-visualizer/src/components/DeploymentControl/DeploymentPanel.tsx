@@ -28,6 +28,7 @@ import { usePlatformExtContext } from "../../providers/platform-ext-ctx-provider
 import { DeploymentControlState } from "../../hooks/useDeploymentControl";
 import { AgentManagerSection, agentManagerTag, useAgentManagerStatus } from "./AgentManagerSection";
 import { useProductMode } from "../../hooks/useProductMode";
+import { WorkflowRuntime, WorkflowSection, useWorkflowRuntime } from "./WorkflowSection";
 
 const Title = styled(Typography)`
     margin: 8px 0;
@@ -586,6 +587,8 @@ interface MonitorItemsOptions extends DeploymentPanelProps {
     agentMode: boolean;
     linkMode?: "internal" | "external";
     tracingBody: ReactNode;
+    showWorkflow: boolean;
+    workflowRuntime: WorkflowRuntime;
 }
 
 function monitorItems(options: MonitorItemsOptions): ReactNode[] {
@@ -599,11 +602,9 @@ function monitorItems(options: MonitorItemsOptions): ReactNode[] {
             <LocalICPDeployment />
         </>
     ));
-    const workflow = options.hasWorkflows && item("workflow", "Workflow Management", enabledTag(options.workflowMgmtEnabled), (
-        <>
-            <p>Manage workflow instances, human tasks and reviews in this {noun} through a REST API.</p>
-            <CheckBox checked={options.workflowMgmtEnabled} onChange={options.handleWorkflowManagement} label="Enable Workflow Management REST API" />
-        </>
+    const workflow = options.showWorkflow && item("workflow", "Workflow Management", enabledTag(options.workflowMgmtEnabled), (
+        <WorkflowSection runtime={options.workflowRuntime} noun={noun} managementEnabled={options.workflowMgmtEnabled}
+            handleWorkflowManagement={options.handleWorkflowManagement} />
     ));
     return (options.agentMode ? [tracing, icp, workflow] : [icp, tracing, workflow]).filter(Boolean);
 }
@@ -615,6 +616,8 @@ export function DeploymentPanel(props: DeploymentPanelProps) {
     const noun = agentMode ? "agent" : "integration";
     const cloud = useWso2Cloud(projectPath);
     const { data: agentManager } = useAgentManagerStatus(projectPath, hasAgents && isOpen);
+    const showWorkflow = props.hasWorkflows || props.workflowImported;
+    const workflowRuntime = useWorkflowRuntime(projectPath, showWorkflow && isOpen);
     const [open, setOpen] = useState<Partial<Record<"deploy" | "monitor", string>>>(
         agentMode ? { deploy: "agentManager" } : { deploy: "cloud", monitor: "icp" });
 
@@ -650,6 +653,7 @@ export function DeploymentPanel(props: DeploymentPanelProps) {
     const deployItems = agentMode ? [agentManagerItem, cloudItem, dockerItem, vmItem] : [cloudItem, agentManagerItem, dockerItem, vmItem];
     const monitor = monitorItems({
         ...props, item: itemIn("monitor"), noun, agentMode, linkMode: agentManager?.link?.mode, tracingBody: agentManagerSection("monitor"),
+        showWorkflow, workflowRuntime,
     });
 
     return (
