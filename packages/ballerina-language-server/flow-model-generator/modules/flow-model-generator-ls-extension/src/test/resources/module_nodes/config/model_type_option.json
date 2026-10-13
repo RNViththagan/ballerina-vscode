@@ -228,7 +228,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "serviceUrl"
             },
-            "defaultValue": "\"https://api.openai.com/v1\""
+            "defaultValue": ""
           },
           "maxTokens": {
             "metadata": {
@@ -256,7 +256,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "maxTokens"
             },
-            "defaultValue": "512"
+            "defaultValue": ""
           },
           "temperature": {
             "metadata": {
@@ -284,7 +284,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "temperature"
             },
-            "defaultValue": "0.7"
+            "defaultValue": ""
           },
           "httpVersion": {
             "metadata": {
@@ -328,7 +328,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"2.0\""
+            "defaultValue": ""
           },
           "http1Settings": {
             "metadata": {
@@ -576,7 +576,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"AUTO\"",
+            "placeholder": "",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -588,7 +588,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"AUTO\""
+            "defaultValue": ""
           },
           "circuitBreaker": {
             "metadata": {
@@ -1127,7 +1127,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "serviceUrl"
             },
-            "defaultValue": "\"https://api.openai.com/v1\""
+            "defaultValue": ""
           },
           "maxTokens": {
             "metadata": {
@@ -1155,7 +1155,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "maxTokens"
             },
-            "defaultValue": "512"
+            "defaultValue": ""
           },
           "temperature": {
             "metadata": {
@@ -1183,7 +1183,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "temperature"
             },
-            "defaultValue": "0.7"
+            "defaultValue": ""
           },
           "httpVersion": {
             "metadata": {
@@ -1227,7 +1227,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"2.0\""
+            "defaultValue": ""
           },
           "http1Settings": {
             "metadata": {
@@ -1475,7 +1475,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"AUTO\"",
+            "placeholder": "",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -1487,7 +1487,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"AUTO\""
+            "defaultValue": ""
           },
           "circuitBreaker": {
             "metadata": {
@@ -2026,7 +2026,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "serviceUrl"
             },
-            "defaultValue": "\"https://api.openai.com/v1\""
+            "defaultValue": ""
           },
           "maxTokens": {
             "metadata": {
@@ -2054,7 +2054,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "maxTokens"
             },
-            "defaultValue": "512"
+            "defaultValue": ""
           },
           "temperature": {
             "metadata": {
@@ -2082,7 +2082,7 @@
               "kind": "DEFAULTABLE",
               "originalName": "temperature"
             },
-            "defaultValue": "0.7"
+            "defaultValue": ""
           },
           "httpVersion": {
             "metadata": {
@@ -2126,7 +2126,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"2.0\""
+            "defaultValue": ""
           },
           "http1Settings": {
             "metadata": {
@@ -2374,7 +2374,7 @@
                 "selected": false
               }
             ],
-            "placeholder": "\"AUTO\"",
+            "placeholder": "",
             "optional": true,
             "editable": true,
             "advanced": false,
@@ -2386,7 +2386,7 @@
             "imports": {
               "http": "ballerina/http"
             },
-            "defaultValue": "\"AUTO\""
+            "defaultValue": ""
           },
           "circuitBreaker": {
             "metadata": {

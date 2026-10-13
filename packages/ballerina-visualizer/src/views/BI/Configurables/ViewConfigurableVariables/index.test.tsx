@@ -28,6 +28,9 @@ import fixture from "./fixtures/issue-2738.json";
 jest.mock("@wso2/ballerina-core", () => ({
     __esModule: true,
     isSamePath: (a: string, b: string) => a === b,
+    ProductMode: { INTEGRATOR: "integrator", AGENT_BUILDER: "agent-builder" },
+    // Read by useProductTerms; a seeded mode skips its RPC fallback.
+    seededProductMode: () => "integrator",
 }));
 
 jest.mock("@wso2/ballerina-rpc-client", () => {
