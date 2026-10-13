@@ -207,9 +207,6 @@ task resolveBallerinaDependencies {
 
             hashFile.text = currentHash
         }
-
-        // The bal CLI compiles against its own bundled stdlibs, which the test distribution's BIR reader rejects.
-        delete fileTree(new File(ballerinaTestHomeDir, "repositories")).matching { include "*/cache-*/**" }
     }
 }
 
