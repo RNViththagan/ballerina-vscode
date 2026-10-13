@@ -207,6 +207,11 @@ task resolveBallerinaDependencies {
 
             hashFile.text = currentHash
         }
+
+        // bal compiles ai.eval against prebuilt stdlib BIRs the test distribution lacks, so tests cannot load its BIR.
+        delete file("$ballerinaTestHomeDir/repositories/central.ballerina.io").listFiles()
+                .findAll { it.name.startsWith("cache-") }
+                .collect { new File(it, "ballerina/ai.eval") }
     }
 }
 
