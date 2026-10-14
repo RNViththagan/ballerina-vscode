@@ -17,7 +17,6 @@
  */
 
 import React, { ReactNode, useState } from "react";
-import { createPortal } from "react-dom";
 import styled from "@emotion/styled";
 import { useQuery } from "@tanstack/react-query";
 import { AgentManagerMcpPublishStatus, AgentManagerMcpSourceStepId, AgentManagerMcpUpstreamSecurity, SCOPE } from "@wso2/ballerina-core";
@@ -25,18 +24,11 @@ import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { Button, Codicon, Dropdown, ProgressRing, TextField } from "@wso2/ui-toolkit";
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react";
 import { ErrorText, GroupTitle, Muted as Detail } from "./AgentManagerConfigFields";
-import { PopupModal, PopupModalStep } from "../PopupModal";
-import {
-    CloseButton, HeaderTitleContainer, PopupContent, PopupFooter, PopupHeader, PopupSubtitle, PopupTitle,
-} from "../../views/BI/Connection/styles";
+import { PopupContent, PopupFooter } from "../../views/BI/Connection/styles";
+import { Actions, DeployPopup, Dot, Row, Stack } from "./shared";
 
 const DEFAULT_KEY_HEADER = "api-key";
-
-const Stack = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-`;
+const ENDPOINT_URL_HINT = "The URL on the WSO2 Cloud overview.";
 
 const StepBody = styled.div`
     display: flex;
@@ -91,29 +83,6 @@ const SECURITY_OPTIONS = [
     { value: "none", content: "None" },
 ];
 
-const Actions = styled.div`
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-`;
-
-const Dot = styled.span<{ color: string }>`
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    flex-shrink: 0;
-    background: ${(props: { color: string }) => props.color};
-`;
-
-const Row = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-`;
-
 /** The WSO2 Cloud deployment state the Deploy panel already tracks for this project. */
 export interface McpCloudState {
     available: boolean;
@@ -151,16 +120,27 @@ export function mcpPublishTag(status?: AgentManagerMcpPublishStatus): string | u
 
 export function McpPublishSection({ projectPath, active, cloud, goToDevant }: McpPublishSectionProps) {
     const { rpcClient } = useRpcContext();
-    const { data: status, isLoading, refetch } = useMcpPublishStatus(projectPath, active);
+    const { data: status, isLoading, isError, error: statusError, isFetching, refetch } = useMcpPublishStatus(projectPath, active);
     const [pending, setPending] = useState<Pending>();
     const [error, setError] = useState<string>();
     const [formOpen, setFormOpen] = useState(false);
 
-    if (isLoading || !status) {
+    if (isLoading) {
         return <ProgressRing />;
     }
+    if (isError || !status) {
+        return (
+            <Stack>
+                <ErrorText>Couldn't check this MCP server's publishing status. {statusError instanceof Error ? statusError.message : ""}</ErrorText>
+                <Actions>
+                    <Button appearance="secondary" disabled={isFetching} onClick={() => refetch()}>Try Again</Button>
+                </Actions>
+            </Stack>
+        );
+    }
 
-    const hosted = cloud.isDeployed && status.endpointReady && !status.source;
+    const source = status.source;
+    const hosted = cloud.isDeployed && status.endpointReady && !source;
     const published = status.published;
 
     const host = async () => {
@@ -226,12 +206,12 @@ export function McpPublishSection({ projectPath, active, cloud, goToDevant }: Mc
                         <Detail>Running on WSO2 Cloud.</Detail>
                         <VSCodeLink onClick={goToDevant}>Open in Console</VSCodeLink>
                     </Actions>
-                ) : status.endpointReady && status.source ? (
+                ) : status.endpointReady && source ? (
                     <>
-                        <Detail>{status.source.message}</Detail>
+                        <Detail>{source.message}</Detail>
                         <Actions>
-                            <Button appearance="primary" disabled={!!pending} onClick={() => fixSource(status.source!.id)}>
-                                {pending === "source" ? "Working…" : status.source.actionLabel}
+                            <Button appearance="primary" disabled={!!pending} onClick={() => fixSource(source.id)}>
+                                {pending === "source" ? "Working…" : source.actionLabel}
                             </Button>
                         </Actions>
                     </>
@@ -299,24 +279,16 @@ export function McpPublishSection({ projectPath, active, cloud, goToDevant }: Mc
                 {(error || status.error) && <ErrorText>{error ?? status.error}</ErrorText>}
                 {status.signedIn && status.instanceUrl && <Detail>Signed in to {new URL(status.instanceUrl).host}</Detail>}
             </Step>
-            {formOpen && status.signedIn && createPortal(
-                <PopupModal onClose={closeForm} height={FORM_HEIGHT} maxWidth={FORM_WIDTH} dismissOnEscape>
-                    {(close) => (
-                        <PopupModalStep>
-                            <PopupHeader>
-                                <HeaderTitleContainer>
-                                    <PopupTitle variant="h2">{published ? "Update MCP Server in Agent Manager" : "Publish to Agent Manager"}</PopupTitle>
-                                    <PopupSubtitle variant="body2">{status.org}</PopupSubtitle>
-                                </HeaderTitleContainer>
-                                <CloseButton appearance="icon" onClick={close}>
-                                    <Codicon name="close" />
-                                </CloseButton>
-                            </PopupHeader>
-                            <McpPublishForm projectPath={projectPath} status={status} goToDevant={goToDevant} onDone={close} onCancel={close} />
-                        </PopupModalStep>
-                    )}
-                </PopupModal>,
-                document.body
+            {formOpen && status.signedIn && (
+                <DeployPopup
+                    title={published ? "Update MCP Server in Agent Manager" : "Publish to Agent Manager"}
+                    subtitle={status.org}
+                    onClose={closeForm}
+                    height={FORM_HEIGHT}
+                    maxWidth={FORM_WIDTH}
+                >
+                    {(close) => <McpPublishForm projectPath={projectPath} status={status} goToDevant={goToDevant} onDone={close} onCancel={close} />}
+                </DeployPopup>
             )}
         </Stack>
     );
@@ -352,7 +324,11 @@ function McpPublishForm({ projectPath, status, goToDevant, onDone, onCancel }: M
             })
             .catch((err) => ({ success: false, message: String(err) }));
         setSubmitting(false);
-        result.success ? onDone() : setError(result.message);
+        if (result.success) {
+            onDone();
+        } else {
+            setError(result.message);
+        }
     };
 
     return (
@@ -367,7 +343,7 @@ function McpPublishForm({ projectPath, status, goToDevant, onDone, onCancel }: M
                             placeholder="https://…choreoapis.dev/…/v1.0"
                             value={url}
                             onTextChange={setUrl}
-                            description={servicePathHint(status.servicePath)}
+                            description={ENDPOINT_URL_HINT}
                             required
                         />
                     </FormSection>
@@ -429,9 +405,4 @@ function Step({ number, title, done, children }: { number: number; title: string
             <StepBody style={{ marginTop: 6 }}>{children}</StepBody>
         </div>
     );
-}
-
-function servicePathHint(servicePath?: string): string {
-    const suffix = servicePath && servicePath !== "/" ? `${servicePath} is added` : "The service path is added";
-    return `The URL on the WSO2 Cloud overview.`;
 }

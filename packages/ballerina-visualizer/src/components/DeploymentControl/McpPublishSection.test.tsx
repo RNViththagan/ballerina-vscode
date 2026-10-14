@@ -33,11 +33,15 @@ let mockRpcClient: ReturnType<typeof makeRpcClient>;
 jest.mock("@wso2/ballerina-rpc-client", () => ({ __esModule: true, useRpcContext: () => ({ rpcClient: mockRpcClient }) }));
 
 let mockStatus: AgentManagerMcpPublishStatus | undefined;
+let mockQueryError: Error | undefined;
 // Like react-query's, resolves with the status as re-read after the action.
 const mockRefetch = jest.fn(async () => ({ data: mockStatus }));
 jest.mock("@tanstack/react-query", () => ({
     __esModule: true,
-    useQuery: () => ({ data: mockStatus, isLoading: false, refetch: mockRefetch }),
+    useQuery: () => ({
+        data: mockQueryError ? undefined : mockStatus, isLoading: false, isError: !!mockQueryError, error: mockQueryError, isFetching: false,
+        refetch: mockRefetch,
+    }),
 }));
 
 // Plain elements, so assertions read real buttons and inputs rather than toolkit abstractions.
@@ -141,6 +145,7 @@ afterEach(() => {
     act(() => root.unmount());
     container.remove();
     mockStatus = undefined;
+    mockQueryError = undefined;
     jest.clearAllMocks();
 });
 
@@ -391,6 +396,17 @@ describe("security section", () => {
         });
         expect(securityType()!.value).toBe("none");
         expect(document.body.querySelector("#am-mcp-key")).toBeNull();
+    });
+});
+
+describe("status errors", () => {
+    it("shows why the status couldn't load and offers a retry instead of spinning forever", async () => {
+        mockQueryError = new Error("connect ECONNREFUSED");
+        render(cloudState());
+        expect(container.querySelector("[data-testid=progress-ring]")).toBeNull();
+        expect(container.querySelector("[role=alert]")?.textContent).toContain("connect ECONNREFUSED");
+        await click("Try Again");
+        expect(mockRefetch).toHaveBeenCalled();
     });
 });
 
