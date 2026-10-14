@@ -556,7 +556,7 @@ function balFiles(projectPath: string): string[] {
     return fs.readdirSync(projectPath).filter((file) => file.endsWith(".bal") && file !== DEV_TRACE_FILE);
 }
 
-function readBalSources(projectPath: string): string {
+export function readBalSources(projectPath: string): string {
     return balFiles(projectPath)
         .map((file) => fs.readFileSync(path.join(projectPath, file), "utf-8"))
         .join("\n");

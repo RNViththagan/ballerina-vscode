@@ -22,6 +22,7 @@ import { parse } from "@iarna/toml";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { AgentManagerBuild, AgentManagerHostingMode, AgentManagerLink } from "@wso2/ballerina-core";
 import { AgentManagerApiError, fetchJson, getAccessToken, getSession, requireSession } from "./auth";
+import type { McpUpstreamAuth } from "./mcp-publish-utils";
 
 // Agent Manager deploys to the pipeline's first environment, which self-hosted AMP names 'default'.
 export const DEFAULT_ENVIRONMENT = "default";
@@ -180,6 +181,11 @@ export const api = {
     listMcpProxies: () =>
         listAll<{ id: string; name: string; description?: string }>("/mcp-proxies", (page) => page.list),
     getMcpProxy: (id: string) => request<McpProxyDetails>("GET", `/mcp-proxies/${encodeURIComponent(id)}`),
+    fetchMcpServerInfo: (url: string, auth?: McpUpstreamAuth) =>
+        request<McpServerInfo>("POST", "/mcp-proxies/fetch-server-info", { url, auth }),
+    createMcpProxy: (body: Record<string, unknown>) => request<McpProxyDetails>("POST", "/mcp-proxies", body),
+    updateMcpProxy: (id: string, body: Record<string, unknown>) =>
+        request<McpProxyDetails>("PUT", `/mcp-proxies/${encodeURIComponent(id)}`, body),
     listMcpProxyScopes: async (id: string) =>
         (await request<{ scopes: { scope: string }[] }>("GET", `/mcp-proxies/${encodeURIComponent(id)}/scopes`)).scopes.map((entry) => entry.scope),
     getEnvironmentId: async (environment: string) =>
@@ -252,14 +258,25 @@ export const api = {
 export interface McpProxyDetails {
     id: string;
     name: string;
+    version?: string;
     description?: string;
     context: string;
     vhost?: string;
     endpoints?: {
+        id?: string;
+        upstream?: { main?: { url?: string; auth?: { type?: string; header?: string } } };
         capabilities?: { tools?: unknown[] };
         security?: { enabled?: boolean; identity?: { enabled?: boolean } };
         environments?: { environmentUuid: string; deploymentStatus?: string }[];
+        [key: string]: unknown;
     }[];
+}
+
+export interface McpServerInfo {
+    serverInfo?: { name?: string; version?: string };
+    tools?: unknown[];
+    resources?: unknown[];
+    prompts?: unknown[];
 }
 
 export async function getObserverBaseUrl(instanceUrl: string): Promise<string> {
@@ -288,6 +305,7 @@ interface Manifest {
     llmProviders?: { provider: string; env: EnvNames }[];
     mcpServers?: { proxy: string; env: EnvNames }[];
     autoInstrumentation?: boolean;
+    publishedMcpProxy?: { id: string; url: string };
 }
 
 export function readManifest(projectPath: string): Manifest {
