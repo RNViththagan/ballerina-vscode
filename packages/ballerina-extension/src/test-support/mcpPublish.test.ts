@@ -16,11 +16,14 @@
  * under the License.
  */
 
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import { parse as parseYaml } from "yaml";
 
 import {
-    buildMcpProxyRequest, findMcpService, McpSourceFacts, mcpSourceStep, normalizeServicePath, PROXY_ENDPOINT_ID, proxyVersion, toProxyHandle,
-    upstreamMcpUrl, withMcpEndpoint,
+    buildMcpProxyRequest, findMcpService, McpSourceFacts, mcpSourceStep, normalizeServicePath, PROXY_ENDPOINT_ID, proxyVersion, readMcpSources,
+    repositoryRootFor, toProxyHandle, upstreamMcpUrl, withMcpEndpoint,
 } from "../features/agent-manager/mcp-publish-utils";
 
 describe("findMcpService", () => {
@@ -78,8 +81,8 @@ describe("upstreamMcpUrl", () => {
         expect(upstreamMcpUrl(`${devant}/`, "/")).toBe(devant);
     });
 
-    it("drops the query string and fragment", () => {
-        expect(upstreamMcpUrl(`${devant}?a=1#x`, "/mcp")).toBe(`${devant}/mcp`);
+    it.each(["?a=1", "#x"])("rejects a URL with %s rather than appending the path after it", (extra) => {
+        expect(() => upstreamMcpUrl(`${devant}${extra}`, "/mcp")).toThrow(/query string or fragment/);
     });
 
     it.each(["", "not a url", "ftp://host/mcp"])("rejects %p", (input) => {
@@ -149,6 +152,25 @@ endpoints:
         expect(doc.endpoints[1]).toEqual({
             name: "tools", displayName: "Tools", service: { port: 8080, basePath: "/" }, type: "REST", networkVisibilities: ["Organization"],
         });
+    });
+
+    it("keeps the user's comments and formatting when it rewrites the file", () => {
+        const existing = `# Managed by our team
+schemaVersion: "1.2"
+endpoints:
+  # The MCP listener
+  - name: tools
+    service: { port: 8080, basePath: /mcp }
+    type: REST
+`;
+        const { content } = withMcpEndpoint(existing, 8080);
+        expect(content).toContain("# Managed by our team");
+        expect(content).toContain("# The MCP listener");
+        expect(parseYaml(content).endpoints[0].service).toEqual({ port: 8080, basePath: "/" });
+    });
+
+    it("refuses a file that isn't valid YAML", () => {
+        expect(() => withMcpEndpoint("endpoints: [unclosed\n", 8080)).toThrow(/isn't valid YAML/);
     });
 
     it("reports no change once the endpoint is ready", () => {
@@ -242,5 +264,36 @@ describe("mcpSourceStep", () => {
         for (const overrides of facts) {
             expect(mcpSourceStep({ ...clean, ...overrides })!.message).not.toMatch(/component\.yaml|\.choreo|base path/i);
         }
+    });
+});
+
+describe("project files", () => {
+    let root: string;
+
+    beforeEach(() => {
+        root = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-publish-files-"));
+    });
+
+    afterEach(() => {
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it("reads the package's sources and its modules', but not the local trace toggle", () => {
+        fs.writeFileSync(path.join(root, "main.bal"), "main");
+        fs.writeFileSync(path.join(root, "trace_enabled.bal"), "trace");
+        fs.writeFileSync(path.join(root, "notes.md"), "notes");
+        fs.mkdirSync(path.join(root, "modules", "tools"), { recursive: true });
+        fs.writeFileSync(path.join(root, "modules", "tools", "server.bal"), "server");
+        expect(readMcpSources(root).sort()).toEqual(["main", "server"]);
+    });
+
+    it("puts a package in its Ballerina workspace's repository, and a standalone package in its own", () => {
+        const pkg = path.join(root, "weather");
+        fs.mkdirSync(pkg);
+        expect(repositoryRootFor(pkg)).toBe(pkg);
+        fs.writeFileSync(path.join(root, "Ballerina.toml"), '[package]\nname = "other"\n');
+        expect(repositoryRootFor(pkg)).toBe(pkg);
+        fs.writeFileSync(path.join(root, "Ballerina.toml"), '[workspace]\npackages = ["weather"]\n');
+        expect(repositoryRootFor(pkg)).toBe(root);
     });
 });

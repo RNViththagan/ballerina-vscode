@@ -30,12 +30,12 @@ import {
     AgentManagerPublishedMcpProxy,
 } from "@wso2/ballerina-core";
 import { AgentManagerApiError, getSession, requireSession } from "./auth";
-import { api, consoleOrgUrl, DEFAULT_ENVIRONMENT, McpProxyDetails, readManifest, updateManifest } from "./client";
-import { readBalSources, readPackageTitle, respond } from "./flows";
-import { git, readFacts } from "./github";
+import { api, consoleOrgUrl, DEFAULT_ENVIRONMENT, endpointFor, McpProxyDetails, McpProxyEndpoint, readManifest, updateManifest } from "./client";
+import { GIT_FIXES, readPackageTitle, respond } from "./flows";
+import { ensureGitIgnored, git, LOCAL_ONLY_FILES, readFacts } from "./github";
 import {
-    buildMcpProxyRequest, findMcpService, McpCapabilities, McpServiceDeclaration, mcpSourceStep, proxyVersion, toProxyHandle, upstreamMcpUrl,
-    withMcpEndpoint,
+    buildMcpProxyRequest, findMcpService, McpCapabilities, McpServiceDeclaration, mcpSourceStep, proxyVersion, readMcpSources, repositoryRootFor,
+    toProxyHandle, upstreamMcpUrl, withMcpEndpoint,
 } from "./mcp-publish-utils";
 
 const COMPONENT_YAML = path.join(".choreo", "component.yaml");
@@ -46,7 +46,7 @@ function readComponentYaml(projectPath: string): string | undefined {
 }
 
 function requireMcpService(projectPath: string): McpServiceDeclaration & { port: number } {
-    const service = findMcpService([readBalSources(projectPath)]);
+    const service = findMcpService(readMcpSources(projectPath));
     if (!service) {
         throw new Error("This integration has no MCP service to publish.");
     }
@@ -59,9 +59,6 @@ function requireMcpService(projectPath: string): McpServiceDeclaration & { port:
 function proxyConsoleUrl(consoleUrl: string, org: string, id: string): string {
     return `${consoleOrgUrl(consoleUrl, org)}/mcp-proxies/view/${encodeURIComponent(id)}`;
 }
-
-const endpointIn = (proxy: McpProxyDetails, environmentId?: string) =>
-    proxy.endpoints?.find((endpoint) => endpoint.environments?.some((env) => env.environmentUuid === environmentId));
 
 const isNotFound = (error: unknown) => error instanceof AgentManagerApiError && error.status === 404;
 
@@ -77,26 +74,38 @@ async function findProxy(id: string): Promise<McpProxyDetails | undefined> {
     }
 }
 
-export async function getMcpPublishStatus(projectPath: string): Promise<AgentManagerMcpPublishStatus> {
-    const service = findMcpService([readBalSources(projectPath)]);
+/** Whether WSO2 Cloud already exposes the listener root; a component.yaml that can't be read is reported, not thrown. */
+function endpointState(projectPath: string, port?: number): { endpointReady: boolean; error?: string } {
     const yaml = readComponentYaml(projectPath);
-    const local = {
-        servicePath: service?.basePath,
-        endpointReady: service?.port !== undefined && yaml !== undefined && !withMcpEndpoint(yaml, service.port).changed,
-        source: mcpSourceStep(await readFacts(projectPath)),
-    };
+    if (port === undefined || yaml === undefined) {
+        return { endpointReady: false };
+    }
+    try {
+        return { endpointReady: !withMcpEndpoint(yaml, port).changed };
+    } catch (error) {
+        return { endpointReady: false, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+export async function getMcpPublishStatus(projectPath: string): Promise<AgentManagerMcpPublishStatus> {
+    const service = findMcpService(readMcpSources(projectPath));
+    const { endpointReady, error: endpointError } = endpointState(projectPath, service?.port);
+    const local = { servicePath: service?.basePath, endpointReady, source: mcpSourceStep(await readFacts(projectPath)) };
     const session = await getSession();
     if (!session) {
-        return { signedIn: false, ...local };
+        return { signedIn: false, ...local, error: endpointError };
     }
-    const status: AgentManagerMcpPublishStatus = { signedIn: true, instanceUrl: session.instanceUrl, org: session.org, ...local };
+    const status: AgentManagerMcpPublishStatus = { signedIn: true, instanceUrl: session.instanceUrl, org: session.org, ...local, error: endpointError };
     const saved = readManifest(projectPath).publishedMcpProxy;
     if (!saved) {
         return status;
     }
     try {
         const [proxy, environmentId] = await Promise.all([api.getMcpProxy(saved.id), api.getEnvironmentId(DEFAULT_ENVIRONMENT)]);
-        const endpoint = endpointIn(proxy, environmentId);
+        if (!environmentId) {
+            return { ...status, error: `Agent Manager has no '${DEFAULT_ENVIRONMENT}' environment, so this MCP server's deployment can't be checked.` };
+        }
+        const endpoint = endpointFor(proxy, environmentId);
         const upstreamHeader = endpoint?.upstream?.main?.auth?.header || undefined;
         const published: AgentManagerPublishedMcpProxy = {
             id: saved.id,
@@ -119,10 +128,6 @@ export async function getMcpPublishStatus(projectPath: string): Promise<AgentMan
     }
 }
 
-const runCommand = (command: string) => async () => {
-    await vscode.commands.executeCommand(command);
-};
-
 const INITIAL_COMMIT_MESSAGE = "Initial commit";
 
 /** VS Code's Git extension API, so a repository created here shows up in Source Control and GitHub publishing. */
@@ -137,47 +142,41 @@ async function runGit(cwd: string, args: string[], action: string): Promise<void
     }
 }
 
-/** Stages and commits everything Git doesn't ignore; nothing to commit is not an error. */
-async function commitAll(root: string): Promise<void> {
-    await runGit(root, ["add", "-A"], "stage the project's files");
-    if ((await git(root, ["diff", "--cached", "--quiet"])).status === 0) {
-        return;
-    }
-    await runGit(root, ["commit", "-m", INITIAL_COMMIT_MESSAGE], "commit the project's files");
-}
+const hasCommits = async (root: string) => (await git(root, ["rev-parse", "--verify", "--quiet", "HEAD"])).status === 0;
 
 /**
- * Publishes to GitHub without VS Code's "which files to include" picker. That picker only appears for a folder
- * with no repository, so the repository is created and everything committed first; publishing then just pushes it.
+ * Publishes to GitHub without VS Code's "which files to include" picker, which only appears for a folder with no
+ * repository. So a repository is created here first, with the agent flow's local-only files ignored, and its first
+ * commit made. A repository that already has history is never committed to here: publishing pushes it as it is, and
+ * the card asks for any remaining changes as its own Commit step.
  */
-async function publishToGitHub(projectPath: string): Promise<void> {
+export async function publishToGitHub(projectPath: string): Promise<void> {
     const facts = await readFacts(projectPath);
     const gitApi = gitExtensionApi();
     let root = facts.root;
     if (!root) {
-        root = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(projectPath))?.uri.fsPath ?? projectPath;
+        root = repositoryRootFor(projectPath);
         if (gitApi?.init) {
             await gitApi.init(vscode.Uri.file(root));
         } else {
             await runGit(root, ["init"], "create a Git repository");
         }
     }
-    await commitAll(root);
+    if (!(await hasCommits(root))) {
+        for (const file of LOCAL_ONLY_FILES) {
+            await ensureGitIgnored(projectPath, file);
+        }
+        await runGit(root, ["add", "-A"], "stage the project's files");
+        await runGit(root, ["commit", "-m", INITIAL_COMMIT_MESSAGE], "make the first commit");
+    }
     const repository = await gitApi?.openRepository?.(vscode.Uri.file(root));
     await repository?.status?.();
     await vscode.commands.executeCommand("github.publish");
 }
 
 const SOURCE_FIXES: Record<AgentManagerMcpSourceStepId, (projectPath: string) => Promise<void>> = {
-    gitMissing: async () => {
-        await vscode.env.openExternal(vscode.Uri.parse("https://git-scm.com/downloads"));
-    },
+    ...GIT_FIXES,
     publishRepo: publishToGitHub,
-    detached: runCommand("git.checkout"),
-    // Only reveals Source Control; the user picks what to commit there.
-    commit: runCommand("workbench.scm.focus"),
-    publishBranch: runCommand("git.publish"),
-    push: runCommand("git.push"),
 };
 
 /** Runs the Git step the card showed, exactly as labelled. */
@@ -200,6 +199,24 @@ export function prepareMcpEndpoint(projectPath: string): Promise<AgentManagerAct
     });
 }
 
+/**
+ * The proxy this project already published, or one with the id it would get that fronts the same server, which a
+ * publish from another clone leaves behind and is adopted rather than duplicated. A same-id proxy for a different
+ * server is a conflict.
+ */
+async function existingProxy(projectPath: string, handle: string, upstream: string): Promise<McpProxyDetails | undefined> {
+    const saved = readManifest(projectPath).publishedMcpProxy;
+    const published = saved && await findProxy(saved.id);
+    if (published) {
+        return published;
+    }
+    const sameId = await findProxy(handle);
+    if (sameId && !sameId.endpoints?.some((endpoint) => endpoint.upstream?.main?.url === upstream)) {
+        throw new Error(`Agent Manager already has an MCP proxy named '${handle}' for a different server. Rename this integration and publish again.`);
+    }
+    return sameId;
+}
+
 export function publishMcpProxy({ projectPath, url, security, header, apiKey }: AgentManagerMcpPublishRequest): Promise<AgentManagerActionResponse> {
     return respond(async () => {
         const session = await requireSession();
@@ -216,9 +233,10 @@ export function publishMcpProxy({ projectPath, url, security, header, apiKey }: 
             throw new Error(`Agent Manager has no '${DEFAULT_ENVIRONMENT}' environment to publish to.`);
         }
 
-        const saved = readManifest(projectPath).publishedMcpProxy;
-        let existing = saved ? await findProxy(saved.id) : undefined;
-        const storedHeader = existing && (endpointIn(existing, environmentId) ?? existing.endpoints?.[0])?.upstream?.main?.auth?.header;
+        const title = await readPackageTitle(projectPath);
+        const existing = await existingProxy(projectPath, toProxyHandle(title), upstream);
+        const existingEndpoint: McpProxyEndpoint | undefined = existing && (endpointFor(existing, environmentId) ?? existing.endpoints?.[0]);
+        const storedHeader = existingEndpoint?.upstream?.main?.auth?.header;
         if (usesKey && !key && !storedHeader) {
             throw new Error("Enter the API key WSO2 Cloud generated for this MCP server.");
         }
@@ -237,19 +255,7 @@ export function publishMcpProxy({ projectPath, url, security, header, apiKey }: 
             serverVersion = info.serverInfo?.version;
         }
 
-        const title = await readPackageTitle(projectPath);
         const handle = existing?.id ?? toProxyHandle(title);
-        if (!existing) {
-            // A proxy with this id published from another clone that fronts the same server is adopted, not duplicated.
-            const sameId = await findProxy(handle);
-            if (sameId) {
-                if (!sameId.endpoints?.some((endpoint) => endpoint.upstream?.main?.url === upstream)) {
-                    throw new Error(`Agent Manager already has an MCP proxy named '${handle}' for a different server. Rename this integration and publish again.`);
-                }
-                existing = sameId;
-            }
-        }
-
         const body = buildMcpProxyRequest({
             handle,
             name: existing?.name ?? title,
@@ -260,7 +266,7 @@ export function publishMcpProxy({ projectPath, url, security, header, apiKey }: 
             auth: usesKey ? { type: "api-key", header: headerName, value: key || undefined } : undefined,
             capabilities,
             environmentId,
-            existingEndpoint: existing && (endpointIn(existing, environmentId) ?? existing.endpoints?.[0]),
+            existingEndpoint,
         });
         if (existing) {
             await api.updateMcpProxy(handle, body);

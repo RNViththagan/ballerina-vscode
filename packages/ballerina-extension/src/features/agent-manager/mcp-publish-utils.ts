@@ -18,8 +18,12 @@
 
 // Pure helpers for publishing an MCP server to Agent Manager, kept free of `vscode` so they unit test directly.
 
-import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
+import * as fs from "fs";
+import * as path from "path";
+import { Document, isMap, isSeq, parseDocument } from "yaml";
 import type { AgentManagerMcpSourceStep } from "@wso2/ballerina-core";
+import type { McpProxyEndpoint, McpProxyRequestBody } from "./client";
+import type { SourceFacts } from "./github";
 
 /** The MCP revision Agent Manager's console registers proxies with. */
 export const MCP_SPEC_VERSION = "2025-06-18";
@@ -40,6 +44,31 @@ const SERVICE = /service\s+mcp:\w*Service\s+(?:([^\s{]+)\s+)?on\s+([^{]+?)\s*\{/
 const INLINE_LISTENER = /new\s+mcp:\w*Listener\s*\(\s*(?:port\s*=\s*)?(\d+)/;
 const NAMED_LISTENER = (name: string) =>
     new RegExp(`listener\\s+mcp:\\w*Listener\\s+${name}\\s*=\\s*(?:check\\s+)?new\\s*(?:mcp:\\w*Listener)?\\s*\\(\\s*(?:port\\s*=\\s*)?(\\d+)`);
+
+// A local trace toggle the agent flow keeps out of Git; it never declares services.
+const LOCAL_ONLY_SOURCES = new Set(["trace_enabled.bal"]);
+
+/** The package's Ballerina sources, including its modules, so a service declared in either is found. */
+export function readMcpSources(projectPath: string): string[] {
+    const balIn = (dir: string) => (fs.existsSync(dir) ? fs.readdirSync(dir) : [])
+        .filter((file) => file.endsWith(".bal") && !LOCAL_ONLY_SOURCES.has(file))
+        .map((file) => fs.readFileSync(path.join(dir, file), "utf-8"));
+    const modulesDir = path.join(projectPath, "modules");
+    const modules = fs.existsSync(modulesDir)
+        ? fs.readdirSync(modulesDir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => path.join(modulesDir, entry.name))
+        : [];
+    return [projectPath, ...modules].flatMap(balIn);
+}
+
+/**
+ * Where the Git repository for this project belongs. WSO2 Cloud builds a Ballerina workspace from its root, so a
+ * package inside one goes in the workspace's repository; a standalone package gets its own.
+ */
+export function repositoryRootFor(projectPath: string): string {
+    const parent = path.dirname(projectPath);
+    const workspaceToml = path.join(parent, "Ballerina.toml");
+    return fs.existsSync(workspaceToml) && /^\s*\[workspace\]/m.test(fs.readFileSync(workspaceToml, "utf-8")) ? parent : projectPath;
+}
 
 /** Finds the first `ballerina/mcp` service across the given sources, and the port of the listener it attaches to. */
 export function findMcpService(sources: string[]): McpServiceDeclaration | undefined {
@@ -78,6 +107,10 @@ export function upstreamMcpUrl(endpointUrl: string, servicePath: string): string
     if (url.protocol !== "https:" && url.protocol !== "http:") {
         throw new Error("Enter the endpoint URL WSO2 Cloud shows for this MCP server, starting with https://.");
     }
+    // The service path is appended to the URL's path, which a query string or fragment would end up after.
+    if (url.search || url.hash) {
+        throw new Error("Remove the query string or fragment from the endpoint URL.");
+    }
     const pathname = url.pathname.replace(/\/+$/, "");
     const suffix = servicePath === "/" ? "" : servicePath;
     const fullPath = suffix && !pathname.endsWith(suffix) ? `${pathname}${suffix}` : pathname;
@@ -102,19 +135,37 @@ export interface ComponentYamlUpdate {
 
 /**
  * Exposes the MCP listener through WSO2 Cloud at base path `/`. Without it, WSO2 Cloud derives the base path from
- * the service path, and MCP clients that append that path again reach `/mcp/mcp`. Other endpoints and keys are kept.
+ * the service path, and MCP clients that append that path again reach `/mcp/mcp`. The document is edited in place,
+ * so other endpoints, keys, comments and formatting are kept. Throws when the existing file isn't valid YAML.
  */
 export function withMcpEndpoint(existing: string | undefined, port: number): ComponentYamlUpdate {
-    const parsed = existing?.trim() ? parseYaml(existing) : undefined;
-    const doc: Record<string, any> = parsed && typeof parsed === "object" ? parsed : {};
-    const endpoints: any[] = Array.isArray(doc.endpoints) ? doc.endpoints : [];
-    const index = endpoints.findIndex((endpoint) => Number(endpoint?.service?.port) === port);
-    const current = index >= 0 ? endpoints[index] : { name: "mcp", displayName: "MCP", type: "REST", networkVisibilities: ["Public"] };
-    const endpoint = { ...current, type: current.type ?? "REST", service: { ...current.service, port, basePath: "/" } };
-    const nextEndpoints = index >= 0 ? endpoints.map((item, i) => (i === index ? endpoint : item)) : [...endpoints, endpoint];
-    const { schemaVersion = "1.2", ...rest } = doc;
-    const next = { schemaVersion, ...rest, endpoints: nextEndpoints };
-    return { content: stringifyYaml(next), changed: JSON.stringify(doc) !== JSON.stringify(next) };
+    const doc: Document = existing?.trim() ? parseDocument(existing) : new Document({ schemaVersion: "1.2" });
+    if (doc.errors.length > 0) {
+        throw new Error(`.choreo/component.yaml isn't valid YAML: ${doc.errors[0].message}`);
+    }
+    const before = JSON.stringify(doc.toJS() ?? null);
+    if (!isMap(doc.contents)) {
+        doc.contents = doc.createNode({ schemaVersion: "1.2" }) as Document["contents"];
+    }
+    if (!doc.has("schemaVersion")) {
+        doc.set("schemaVersion", "1.2");
+    }
+    let endpoints = doc.get("endpoints");
+    if (!isSeq(endpoints)) {
+        endpoints = doc.createNode([]);
+        doc.set("endpoints", endpoints);
+    }
+    const items = isSeq(endpoints) ? endpoints.items : [];
+    const current = items.find((item) => isMap(item) && Number(item.getIn(["service", "port"])) === port);
+    if (isMap(current)) {
+        if (!current.has("type")) {
+            current.set("type", "REST");
+        }
+        current.setIn(["service", "basePath"], "/");
+    } else {
+        items.push(doc.createNode({ name: "mcp", displayName: "MCP", type: "REST", networkVisibilities: ["Public"], service: { port, basePath: "/" } }));
+    }
+    return { content: doc.toString(), changed: JSON.stringify(doc.toJS()) !== before };
 }
 
 export interface McpUpstreamAuth {
@@ -140,14 +191,14 @@ export interface McpProxyRequestInput {
     capabilities?: McpCapabilities;
     environmentId: string;
     /** The endpoint as Agent Manager returned it, so an update keeps its policies, security and scope bindings. */
-    existingEndpoint?: Record<string, any>;
+    existingEndpoint?: McpProxyEndpoint;
 }
 
 /**
  * The create or update body for an Agent Manager MCP proxy with one endpoint in one environment.
  * New endpoints use Agent Identity (OAuth): Ballerina agents can't send the custom header API-key security needs.
  */
-export function buildMcpProxyRequest(input: McpProxyRequestInput): Record<string, unknown> {
+export function buildMcpProxyRequest(input: McpProxyRequestInput): McpProxyRequestBody {
     const { existingEndpoint } = input;
     const { environments: _environments, ...kept } = existingEndpoint ?? {};
     return {
@@ -168,18 +219,8 @@ export function buildMcpProxyRequest(input: McpProxyRequestInput): Record<string
     };
 }
 
-/** The git state that decides what WSO2 Cloud can build; a subset of the agent flow's `SourceFacts`. */
-export interface McpSourceFacts {
-    gitMissing: boolean;
-    root?: string;
-    hasRemotes: boolean;
-    branch?: string;
-    upstreamBranch?: string;
-    /** Uncommitted changes in this package's folder. */
-    dirty: number;
-    /** Commits on the branch that its remote doesn't have. */
-    ahead: number;
-}
+/** The Git state that decides what WSO2 Cloud can build: the agent flow's facts, minus its GitHub-only ones. */
+export type McpSourceFacts = Pick<SourceFacts, "gitMissing" | "root" | "hasRemotes" | "branch" | "upstreamBranch" | "dirty" | "ahead">;
 
 /**
  * The next thing to do before WSO2 Cloud, which builds from the remote repository, sees the latest code.
