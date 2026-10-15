@@ -21,18 +21,22 @@ import { FlowNode } from "@wso2/ballerina-core";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { URI, Utils } from "vscode-uri";
 import { useModalStack } from "../../../../Context";
-import { ConnectionCreator, ConnectionSelectionList } from "../../../../components/ConnectionSelector";
+import {
+    ConnectionCreator,
+    ConnectionKind,
+    ConnectionSelectionList,
+    getConnectionKindDisplayName
+} from "../../../../components/ConnectionSelector";
 import { RelativeLoader } from "../../../../components/RelativeLoader";
 import { LoaderContainer } from "../../../../components/RelativeLoader/styles";
 import { CONNECTIONS_FILE } from "../../../../constants";
 import { getNodeTemplateForConnection } from "../../FlowDiagram/utils";
 
-const SELECT_ID = "add-model-provider-select";
-const CREATE_ID = "add-model-provider-create";
 const MODAL_WIDTH = 680;
 const MODAL_HEIGHT = 780;
 
-interface ModelProviderFormProps {
+interface ComponentFormProps {
+    connectionKind: ConnectionKind;
     nodeId: string;
     metadata: unknown;
     fileName: string;
@@ -40,7 +44,7 @@ interface ModelProviderFormProps {
     onFailed: () => void;
 }
 
-function ModelProviderForm({ nodeId, metadata, fileName, onSaved, onFailed }: ModelProviderFormProps) {
+function ComponentForm({ connectionKind, nodeId, metadata, fileName, onSaved, onFailed }: ComponentFormProps) {
     const { rpcClient } = useRpcContext();
     const [template, setTemplate] = useState<FlowNode>();
 
@@ -48,7 +52,7 @@ function ModelProviderForm({ nodeId, metadata, fileName, onSaved, onFailed }: Mo
         getNodeTemplateForConnection(nodeId, metadata, undefined, fileName, rpcClient)
             .then(({ flowNode }) => setTemplate(flowNode))
             .catch((error) => {
-                console.error("Error fetching model provider template", error);
+                console.error("Error fetching the component template", error);
                 onFailed();
             });
     }, [nodeId]);
@@ -58,7 +62,7 @@ function ModelProviderForm({ nodeId, metadata, fileName, onSaved, onFailed }: Mo
     }
     return (
         <ConnectionCreator
-            connectionKind="MODEL_PROVIDER"
+            connectionKind={connectionKind}
             selectedNode={{ properties: { model: { value: "" } } } as unknown as FlowNode}
             nodeFormTemplate={template}
             onSave={onSaved}
@@ -66,45 +70,50 @@ function ModelProviderForm({ nodeId, metadata, fileName, onSaved, onFailed }: Mo
     );
 }
 
-export interface AddModelProviderPopupProps {
+export interface AddAiComponentPopupProps {
+    connectionKind: ConnectionKind;
     projectPath: string;
     onNavigateToOverview: () => void;
 }
 
-// Opens the same Select Model Provider and create steps an agent's Model field uses, for the explorer's add action.
-export function AddModelProviderPopup({ projectPath, onNavigateToOverview }: AddModelProviderPopupProps): null {
+// Opens the same select and create steps an agent's form uses for the AI component, for the explorer's add actions.
+export function AddAiComponentPopup({ connectionKind, projectPath, onNavigateToOverview }: AddAiComponentPopupProps): null {
     const { addModal, closeModal } = useModalStack();
     const navigateToOverview = useRef(onNavigateToOverview);
     navigateToOverview.current = onNavigateToOverview;
 
     useEffect(() => {
         let tearingDown = false;
+        const selectId = `add-${connectionKind}-select`;
+        const createId = `add-${connectionKind}-create`;
+        const displayName = getConnectionKindDisplayName(connectionKind);
         const fileName = Utils.joinPath(URI.file(projectPath), CONNECTIONS_FILE).fsPath;
         const finish = () => {
             tearingDown = true;
-            closeModal(CREATE_ID);
-            closeModal(SELECT_ID);
+            closeModal(createId);
+            closeModal(selectId);
             navigateToOverview.current();
         };
         const handleSelect = (nodeId: string, metadata?: unknown) => {
             addModal(
-                <ModelProviderForm
+                <ComponentForm
+                    connectionKind={connectionKind}
                     nodeId={nodeId}
                     metadata={metadata}
                     fileName={fileName}
                     onSaved={finish}
-                    onFailed={() => closeModal(CREATE_ID)}
+                    onFailed={() => closeModal(createId)}
                 />,
-                CREATE_ID,
-                "Create Model Provider",
+                createId,
+                `Create ${displayName}`,
                 MODAL_HEIGHT,
                 MODAL_WIDTH
             );
         };
         addModal(
-            <ConnectionSelectionList connectionKind="MODEL_PROVIDER" onSelect={handleSelect} fillContainerHeight />,
-            SELECT_ID,
-            "Select Model Provider",
+            <ConnectionSelectionList connectionKind={connectionKind} onSelect={handleSelect} fillContainerHeight />,
+            selectId,
+            `Select ${displayName}`,
             MODAL_HEIGHT,
             MODAL_WIDTH,
             () => {
@@ -115,12 +124,12 @@ export function AddModelProviderPopup({ projectPath, onNavigateToOverview }: Add
         );
         return () => {
             tearingDown = true;
-            closeModal(CREATE_ID);
-            closeModal(SELECT_ID);
+            closeModal(createId);
+            closeModal(selectId);
         };
-    }, [projectPath]);
+    }, [connectionKind, projectPath]);
 
     return null;
 }
 
-export default AddModelProviderPopup;
+export default AddAiComponentPopup;

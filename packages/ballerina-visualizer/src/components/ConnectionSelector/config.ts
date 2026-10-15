@@ -22,6 +22,7 @@ import { BALLERINAX } from "../../constants";
 import {
     convertChunkerCategoriesToSidePanelCategories,
     convertEmbeddingProviderCategoriesToSidePanelCategories,
+    convertKnowledgeBaseCategoriesToSidePanelCategories,
     convertMemoryStoreCategoriesToSidePanelCategories,
     convertModelProviderCategoriesToSidePanelCategories,
     convertVectorStoreCategoriesToSidePanelCategories
@@ -64,6 +65,16 @@ export const CONNECTION_TYPE_CONFIGS: Record<ConnectionKind, ConnectionKindConfi
         searchConfig: (): ConnectionSearchConfig => ({
             query: "",
             searchKind: "SHORT_TERM_MEMORY_STORE"
+        })
+    },
+    KNOWLEDGE_BASE: {
+        displayName: "Knowledge Base",
+        types: [{ fieldType: "ACTION_EXPRESSION", ballerinaType: "ai:KnowledgeBase", selected: true }, { fieldType: "EXPRESSION", selected: false }],
+        nodePropertyKey: "knowledgeBase",
+        categoryConverter: convertKnowledgeBaseCategoriesToSidePanelCategories,
+        searchConfig: (): ConnectionSearchConfig => ({
+            query: "",
+            searchKind: "KNOWLEDGE_BASE"
         })
     }
 };

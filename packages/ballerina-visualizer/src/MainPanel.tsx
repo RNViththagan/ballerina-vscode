@@ -773,12 +773,14 @@ const MainPanel = () => {
                             );
                             break;
                         }
-                        case MACHINE_VIEW.AddModelProvider: {
-                            const { default: AddModelProviderPopup } = await import("./views/BI/Connection/AddModelProviderPopup");
+                        case MACHINE_VIEW.AddModelProvider:
+                        case MACHINE_VIEW.AddKnowledgeBase: {
+                            const { default: AddAiComponentPopup } = await import("./views/BI/Connection/AddAiComponentPopup");
                             if (isStaleNavigation()) return;
                             setViewComponent(
-                                <AddModelProviderPopup
+                                <AddAiComponentPopup
                                     key={remountKey}
+                                    connectionKind={value.view === MACHINE_VIEW.AddKnowledgeBase ? "KNOWLEDGE_BASE" : "MODEL_PROVIDER"}
                                     projectPath={value.projectPath}
                                     onNavigateToOverview={handleNavigateToOverview}
                                 />
