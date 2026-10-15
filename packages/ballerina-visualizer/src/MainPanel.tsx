@@ -773,6 +773,18 @@ const MainPanel = () => {
                             );
                             break;
                         }
+                        case MACHINE_VIEW.AddModelProvider: {
+                            const { default: AddModelProviderPopup } = await import("./views/BI/Connection/AddModelProviderPopup");
+                            if (isStaleNavigation()) return;
+                            setViewComponent(
+                                <AddModelProviderPopup
+                                    key={remountKey}
+                                    projectPath={value.projectPath}
+                                    onNavigateToOverview={handleNavigateToOverview}
+                                />
+                            );
+                            break;
+                        }
                         case MACHINE_VIEW.AddAgentDefinition: {
                             const { default: AddAgentDefinition } = await import("./views/BI/AIChatAgent/AddAgentDefinition");
                             if (isStaleNavigation()) return;

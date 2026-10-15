@@ -137,6 +137,7 @@ export enum MACHINE_VIEW {
     AddConnectionWizard = "Add Connection Wizard",
     AddAgent = "Add Agent SKIP",
     AddAgentDefinition = "Add Agent Definition SKIP",
+    AddModelProvider = "Add Model Provider SKIP",
     ConnectionConfiguration = "Connection Configuration",
     AddCustomConnector = "Add Custom Connector",
     ViewConfigVariables = "View Config Variables",
