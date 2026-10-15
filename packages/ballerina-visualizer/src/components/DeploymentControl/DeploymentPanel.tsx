@@ -19,7 +19,7 @@
 import React, { ReactNode, useState } from "react";
 import styled from "@emotion/styled";
 import { useQuery } from "@tanstack/react-query";
-import { ProjectStructure, isSamePath, BI_COMMANDS, ProductMode, hasWorkflowArtifacts } from "@wso2/ballerina-core";
+import { ProjectStructure, isSamePath, BI_COMMANDS, ProductMode, hasWorkflowArtifacts, DIRECTORY_MAP } from "@wso2/ballerina-core";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { Typography, Codicon, ProgressRing, Button, Divider, CheckBox, ThemeColors } from "@wso2/ui-toolkit";
 import { VSCodeLink } from "@vscode/webview-ui-toolkit/react";
@@ -27,6 +27,7 @@ import { WICommandIds } from "@wso2/wso2-platform-core";
 import { usePlatformExtContext } from "../../providers/platform-ext-ctx-provider";
 import { DeploymentControlState } from "../../hooks/useDeploymentControl";
 import { AgentManagerSection, agentManagerTag, useAgentManagerStatus } from "./AgentManagerSection";
+import { McpPublishSection, mcpPublishTag, useMcpPublishStatus } from "./McpPublishSection";
 import { useProductMode } from "../../hooks/useProductMode";
 import { WorkflowRuntime, WorkflowSection, useWorkflowRuntime } from "./WorkflowSection";
 
@@ -616,10 +617,12 @@ export function DeploymentPanel(props: DeploymentPanelProps) {
     const noun = agentMode ? "agent" : "integration";
     const cloud = useWso2Cloud(projectPath);
     const { data: agentManager } = useAgentManagerStatus(projectPath, hasAgents && isOpen);
+    const hasMcpService = !!props.projectStructure?.directoryMap?.[DIRECTORY_MAP.SERVICE]?.some((service) => service.moduleName === "mcp");
+    const { data: mcpPublish } = useMcpPublishStatus(projectPath, hasMcpService && isOpen);
     const showWorkflow = props.hasWorkflows || props.workflowImported;
     const workflowRuntime = useWorkflowRuntime(projectPath, showWorkflow && isOpen);
     const [open, setOpen] = useState<Partial<Record<"deploy" | "monitor", string>>>(
-        agentMode ? { deploy: "agentManager" } : { deploy: "cloud", monitor: "icp" });
+        agentMode ? { deploy: "agentManager" } : hasMcpService ? { deploy: "mcpPublish", monitor: "icp" } : { deploy: "cloud", monitor: "icp" });
 
     if (isInDevant) {
         return <DevantDashboard projectStructure={props.projectStructure} handleDeploy={handleDeploy} goToDevant={goToDevant} />;
@@ -650,7 +653,12 @@ export function DeploymentPanel(props: DeploymentPanelProps) {
         <BuildOption description="Build an executable JAR to run on any server with a Java runtime."
             label="Build JAR" enabled={hasDeployableIntegration} onBuild={props.handleJarBuild} />);
 
-    const deployItems = agentMode ? [agentManagerItem, cloudItem, dockerItem, vmItem] : [cloudItem, agentManagerItem, dockerItem, vmItem];
+    const mcpPublishItem = hasMcpService && item("mcpPublish", "Host on WSO2 Cloud and Publish to Agent Manager", mcpPublishTag(mcpPublish),
+        <McpPublishSection projectPath={projectPath} active={isOpen} cloud={cloud} goToDevant={goToDevant} />);
+
+    const deployItems = agentMode
+        ? [agentManagerItem, mcpPublishItem, cloudItem, dockerItem, vmItem]
+        : [mcpPublishItem, cloudItem, agentManagerItem, dockerItem, vmItem];
     const monitor = monitorItems({
         ...props, item: itemIn("monitor"), noun, agentMode, linkMode: agentManager?.link?.mode, tracingBody: agentManagerSection("monitor"),
         showWorkflow, workflowRuntime,
