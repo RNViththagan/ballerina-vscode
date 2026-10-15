@@ -142,6 +142,7 @@ public class CommonUtils {
     private static final String AGENT_TOOL = "AgentTool";
     public static final String CONNECTOR_TYPE = "connectorType";
     public static final String PERSIST = "persist";
+    public static final String MODEL_PROVIDER = "modelProvider";
     public static final String PERSIST_MODEL_FILE = "persistModelFile";
     public static final String PERSIST_DB_CLIENT_FIELD = "dbClient";
     public static final String DEFAULT_PERSIST_MODEL_FILE = "model.bal";

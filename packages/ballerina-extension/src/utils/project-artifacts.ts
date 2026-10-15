@@ -23,6 +23,9 @@ import { ExtendedLangClient } from "../core/extended-language-client";
 import { ArtifactsUpdated, ArtifactNotificationHandler } from "./project-artifacts-handler";
 import { isLibraryProject } from "./config";
 
+// The explorer lists connections of this kind under their own Model Providers section.
+const MODEL_PROVIDER_CONNECTOR = "modelProvider";
+
 // Tracks projects whose artifacts could not be fetched (e.g., the initial load raced with a
 // missing-module pull and the compilation failed). Used to recover with a full rebuild once
 // the LS publishes artifacts after the pull completes.
@@ -453,6 +456,9 @@ async function getEntryValue(artifact: BaseArtifact, projectPath: string, icon: 
             const connectionIcon = toIconDescriptor(artifact.icon);
             entryValue.iconLight = connectionIcon?.light ?? connectionIcon?.url;
             entryValue.iconDark = connectionIcon?.dark ?? connectionIcon?.url;
+            if (artifact.metadata?.connectorType === MODEL_PROVIDER_CONNECTOR) {
+                entryValue.kind = MODEL_PROVIDER_CONNECTOR;
+            }
             break;
         case DIRECTORY_MAP.AGENT:
             entryValue.icon = icon;

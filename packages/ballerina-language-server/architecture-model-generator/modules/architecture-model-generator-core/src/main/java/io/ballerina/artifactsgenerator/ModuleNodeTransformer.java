@@ -53,6 +53,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static io.ballerina.modelgenerator.commons.CommonUtils.CONNECTOR_TYPE;
+import static io.ballerina.modelgenerator.commons.CommonUtils.MODEL_PROVIDER;
 import static io.ballerina.modelgenerator.commons.CommonUtils.PERSIST;
 import static io.ballerina.modelgenerator.commons.CommonUtils.PERSIST_MODEL_FILE;
 import static io.ballerina.modelgenerator.commons.CommonUtils.getPersistModelFilePath;
@@ -60,6 +61,7 @@ import static io.ballerina.modelgenerator.commons.CommonUtils.isAgentClass;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiFixedTypedAgent;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDependentlyTypedAgent;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiMemoryStore;
+import static io.ballerina.modelgenerator.commons.CommonUtils.isAiModelProvider;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiKnowledgeBase;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDataLoader;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiVectorStore;
@@ -239,6 +241,8 @@ public class ModuleNodeTransformer extends NodeTransformer<Optional<Artifact>> {
                             .addMetadata(CONNECTOR_TYPE, PERSIST);
                     getPersistModelFilePath(projectPath, clientClassSymbol)
                             .ifPresent(modelFile -> variableBuilder.addMetadata(PERSIST_MODEL_FILE, modelFile));
+                } else if (isAiModelProvider(clientClassSymbol)) {
+                    variableBuilder.addMetadata(CONNECTOR_TYPE, MODEL_PROVIDER);
                 }
             } else {
                 Optional<ClassSymbol> agent = getAgent(moduleVariableDeclarationNode);
