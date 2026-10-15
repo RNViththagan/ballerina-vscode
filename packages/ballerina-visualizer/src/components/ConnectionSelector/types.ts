@@ -18,8 +18,7 @@
 
 import { FlowNode, InputType, ProjectStructureArtifactResponse, SearchKind } from "@wso2/ballerina-core";
 
-export type ConnectionKind = 'MODEL_PROVIDER' | 'VECTOR_STORE' | 'EMBEDDING_PROVIDER' | 'CHUNKER' | 'SHORT_TERM_MEMORY_STORE'
-    | 'KNOWLEDGE_BASE';
+export type ConnectionKind = 'MODEL_PROVIDER' | 'VECTOR_STORE' | 'EMBEDDING_PROVIDER' | 'CHUNKER' | 'SHORT_TERM_MEMORY_STORE';
 
 export interface ConnectionKindConfig {
     displayName: string;
