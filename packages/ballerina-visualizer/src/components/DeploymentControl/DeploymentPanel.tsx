@@ -29,6 +29,7 @@ import { DeploymentControlState } from "../../hooks/useDeploymentControl";
 import { AgentManagerSection, agentManagerTag, useAgentManagerStatus } from "./AgentManagerSection";
 import { McpPublishSection, mcpPublishTag, useMcpPublishStatus } from "./McpPublishSection";
 import { useProductMode } from "../../hooks/useProductMode";
+import { WorkflowRuntime, WorkflowSection, useWorkflowRuntime } from "./WorkflowSection";
 
 const Title = styled(Typography)`
     margin: 8px 0;
@@ -587,6 +588,8 @@ interface MonitorItemsOptions extends DeploymentPanelProps {
     agentMode: boolean;
     linkMode?: "internal" | "external";
     tracingBody: ReactNode;
+    showWorkflow: boolean;
+    workflowRuntime: WorkflowRuntime;
 }
 
 function monitorItems(options: MonitorItemsOptions): ReactNode[] {
@@ -600,11 +603,9 @@ function monitorItems(options: MonitorItemsOptions): ReactNode[] {
             <LocalICPDeployment />
         </>
     ));
-    const workflow = options.hasWorkflows && item("workflow", "Workflow Management", enabledTag(options.workflowMgmtEnabled), (
-        <>
-            <p>Manage workflow instances, human tasks and reviews in this {noun} through a REST API.</p>
-            <CheckBox checked={options.workflowMgmtEnabled} onChange={options.handleWorkflowManagement} label="Enable Workflow Management REST API" />
-        </>
+    const workflow = options.showWorkflow && item("workflow", "Workflow Management", enabledTag(options.workflowMgmtEnabled), (
+        <WorkflowSection runtime={options.workflowRuntime} noun={noun} managementEnabled={options.workflowMgmtEnabled}
+            handleWorkflowManagement={options.handleWorkflowManagement} />
     ));
     return (options.agentMode ? [tracing, icp, workflow] : [icp, tracing, workflow]).filter(Boolean);
 }
@@ -618,6 +619,8 @@ export function DeploymentPanel(props: DeploymentPanelProps) {
     const { data: agentManager } = useAgentManagerStatus(projectPath, hasAgents && isOpen);
     const hasMcpService = !!props.projectStructure?.directoryMap?.[DIRECTORY_MAP.SERVICE]?.some((service) => service.moduleName === "mcp");
     const { data: mcpPublish } = useMcpPublishStatus(projectPath, hasMcpService && isOpen);
+    const showWorkflow = props.hasWorkflows || props.workflowImported;
+    const workflowRuntime = useWorkflowRuntime(projectPath, showWorkflow && isOpen);
     const [open, setOpen] = useState<Partial<Record<"deploy" | "monitor", string>>>(
         agentMode ? { deploy: "agentManager" } : hasMcpService ? { deploy: "mcpPublish", monitor: "icp" } : { deploy: "cloud", monitor: "icp" });
 
@@ -658,6 +661,7 @@ export function DeploymentPanel(props: DeploymentPanelProps) {
         : [mcpPublishItem, cloudItem, agentManagerItem, dockerItem, vmItem];
     const monitor = monitorItems({
         ...props, item: itemIn("monitor"), noun, agentMode, linkMode: agentManager?.link?.mode, tracingBody: agentManagerSection("monitor"),
+        showWorkflow, workflowRuntime,
     });
 
     return (
