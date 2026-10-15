@@ -49,7 +49,10 @@ import io.ballerina.flowmodelgenerator.core.utils.WorkflowUtil;
 import io.ballerina.modelgenerator.commons.CommonUtils;
 import org.ballerinalang.langserver.commons.BallerinaCompilerApi;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static io.ballerina.modelgenerator.commons.CommonUtils.CONNECTOR_TYPE;
@@ -61,9 +64,9 @@ import static io.ballerina.modelgenerator.commons.CommonUtils.isAgentClass;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiFixedTypedAgent;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDependentlyTypedAgent;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiMemoryStore;
-import static io.ballerina.modelgenerator.commons.CommonUtils.isAiModelProvider;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiKnowledgeBase;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDataLoader;
+import static io.ballerina.modelgenerator.commons.CommonUtils.isAiChunker;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiVectorStore;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isPersistClient;
 
@@ -78,6 +81,15 @@ import static io.ballerina.modelgenerator.commons.CommonUtils.isPersistClient;
  * @since 1.0.0
  */
 public class ModuleNodeTransformer extends NodeTransformer<Optional<Artifact>> {
+
+    private static final List<Map.Entry<Predicate<Symbol>, String>> AI_COMPONENT_KINDS = List.of(
+            Map.entry(CommonUtils::isAiModelProvider, MODEL_PROVIDER),
+            Map.entry(CommonUtils::isAiEmbeddingProvider, "embeddingProvider"),
+            Map.entry(CommonUtils::isAiVectorStore, "vectorStore"),
+            Map.entry(CommonUtils::isAiKnowledgeBase, "knowledgeBase"),
+            Map.entry(CommonUtils::isAiMemoryStore, "memoryStore"),
+            Map.entry(CommonUtils::isAiChunker, "chunker"),
+            Map.entry(CommonUtils::isAiDataLoader, "dataLoader"));
 
     private final SemanticModel semanticModel;
     private final String projectPath;
@@ -241,8 +253,9 @@ public class ModuleNodeTransformer extends NodeTransformer<Optional<Artifact>> {
                             .addMetadata(CONNECTOR_TYPE, PERSIST);
                     getPersistModelFilePath(projectPath, clientClassSymbol)
                             .ifPresent(modelFile -> variableBuilder.addMetadata(PERSIST_MODEL_FILE, modelFile));
-                } else if (isAiModelProvider(clientClassSymbol)) {
-                    variableBuilder.addMetadata(CONNECTOR_TYPE, MODEL_PROVIDER);
+                } else {
+                    aiComponentKind(clientClassSymbol)
+                            .ifPresent(kind -> variableBuilder.addMetadata(CONNECTOR_TYPE, kind));
                 }
             } else {
                 Optional<ClassSymbol> agent = getAgent(moduleVariableDeclarationNode);
@@ -332,6 +345,13 @@ public class ModuleNodeTransformer extends NodeTransformer<Optional<Artifact>> {
         builder.icon(typeSymbol.get());
     }
 
+    private static Optional<String> aiComponentKind(ClassSymbol classSymbol) {
+        return AI_COMPONENT_KINDS.stream()
+                .filter(entry -> entry.getKey().test(classSymbol))
+                .map(Map.Entry::getValue)
+                .findFirst();
+    }
+
     private Optional<ClassSymbol> getConnection(Node node) {
         try {
             Symbol symbol = semanticModel.symbol(node).orElseThrow();
@@ -339,7 +359,8 @@ public class ModuleNodeTransformer extends NodeTransformer<Optional<Artifact>> {
                     (TypeReferenceTypeSymbol) ((VariableSymbol) symbol).typeDescriptor();
             ClassSymbol classSymbol = (ClassSymbol) typeDescriptorSymbol.typeDescriptor();
             if (classSymbol.qualifiers().contains(Qualifier.CLIENT) || isAiKnowledgeBase(classSymbol)
-                    || isAiVectorStore(symbol) || isAiMemoryStore(symbol) || isAiDataLoader(symbol)) {
+                    || isAiVectorStore(symbol) || isAiMemoryStore(symbol) || isAiDataLoader(symbol)
+                    || isAiChunker(symbol)) {
                 return Optional.of(classSymbol);
             }
         } catch (Throwable e) {

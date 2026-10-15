@@ -23,8 +23,10 @@ import { ExtendedLangClient } from "../core/extended-language-client";
 import { ArtifactsUpdated, ArtifactNotificationHandler } from "./project-artifacts-handler";
 import { isLibraryProject } from "./config";
 
-// The explorer lists connections of this kind under their own Model Providers section.
-const MODEL_PROVIDER_CONNECTOR = "modelProvider";
+// The explorer lists AI component connections of these kinds under their own sections.
+const AI_COMPONENT_KINDS = new Set([
+    "modelProvider", "embeddingProvider", "vectorStore", "knowledgeBase", "memoryStore", "chunker", "dataLoader"
+]);
 
 // Tracks projects whose artifacts could not be fetched (e.g., the initial load raced with a
 // missing-module pull and the compilation failed). Used to recover with a full rebuild once
@@ -459,8 +461,8 @@ async function getEntryValue(artifact: BaseArtifact, projectPath: string, icon: 
             entryValue.iconLight = connectionIcon?.light;
             entryValue.iconDark = connectionIcon?.dark;
             entryValue.iconUrl = connectionIcon?.url;
-            if (artifact.metadata?.connectorType === MODEL_PROVIDER_CONNECTOR) {
-                entryValue.kind = MODEL_PROVIDER_CONNECTOR;
+            if (AI_COMPONENT_KINDS.has(artifact.metadata?.connectorType)) {
+                entryValue.kind = artifact.metadata.connectorType;
             }
             break;
         case DIRECTORY_MAP.AGENT:
