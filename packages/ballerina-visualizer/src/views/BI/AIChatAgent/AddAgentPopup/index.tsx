@@ -27,6 +27,8 @@ import { PackageAgentsView } from "./PackageAgentsView";
 import { AgentDefinitionFormContainer } from "./styles";
 
 const ROOT_ID = "add-agent";
+const GALLERY_ID = `${ROOT_ID}-gallery`;
+const TOOL_ID = `${ROOT_ID}-tool`;
 const GALLERY_WIDTH = 800;
 const FORM_WIDTH = 680;
 const MODAL_HEIGHT = 780;
@@ -116,45 +118,52 @@ export function AddAgentPopup(props: AddAgentPopupProps): null {
     // Each level is pushed once; its callbacks read the latest props through the ref.
     useEffect(() => {
         tearingDown.current = false;
-        const id = `${ROOT_ID}-${dependencyToolForm ? "tool" : "gallery"}`;
-        if (dependencyToolForm) {
-            addModal(dependencyToolForm, id, "Add Agent Tool", MODAL_HEIGHT, FORM_WIDTH, () => {
-                if (!tearingDown.current) {
-                    latest.current.onDependencyToolFormBack?.();
-                }
-            }, true);
-        } else {
-            addModal(
-                <AddAgentPopupContent
-                    projectPath={projectPath}
-                    onOpenAgentForm={openAgentForm}
-                    onOpenPackage={openPackage}
-                    onOpenDefinition={openDefinition}
-                    onOpenDurable={openDurable}
-                    inFlow={inFlow}
-                    dependencyMode={dependencyMode}
-                    onAgentSelectedForDependency={latest.current.onAgentSelectedForDependency}
-                    onGenericAgentSelected={latest.current.onGenericAgentSelected}
-                />,
-                id,
-                dependencyMode ? "Use Agent" : "Add Agent",
-                MODAL_HEIGHT,
-                GALLERY_WIDTH,
-                dismiss,
-                true
-            );
-        }
+        addModal(
+            <AddAgentPopupContent
+                projectPath={projectPath}
+                onOpenAgentForm={openAgentForm}
+                onOpenPackage={openPackage}
+                onOpenDefinition={openDefinition}
+                onOpenDurable={openDurable}
+                inFlow={inFlow}
+                dependencyMode={dependencyMode}
+                onAgentSelectedForDependency={latest.current.onAgentSelectedForDependency}
+                onGenericAgentSelected={latest.current.onGenericAgentSelected}
+            />,
+            GALLERY_ID,
+            dependencyMode ? "Use Agent" : "Add Agent",
+            MODAL_HEIGHT,
+            GALLERY_WIDTH,
+            dismiss,
+            true
+        );
         return () => {
             tearingDown.current = true;
-            popToModal(id);
-            closeModal(id);
+            popToModal(GALLERY_ID);
+            closeModal(GALLERY_ID);
+        };
+    }, []);
+
+    // Drills down from the gallery, so Back returns to it and close ends the whole flow.
+    useEffect(() => {
+        if (!hasToolForm) {
+            return;
+        }
+        addModal(dependencyToolForm, TOOL_ID, "Add Agent Tool", MODAL_HEIGHT, FORM_WIDTH, () => {
+            if (!tearingDown.current) {
+                latest.current.onDependencyToolFormBack?.();
+            }
+        }, true);
+        return () => {
+            popToModal(TOOL_ID);
+            closeModal(TOOL_ID);
         };
     }, [hasToolForm]);
 
     // Updated in place, since re-pushing would drop any level the tool form opened on top.
     useEffect(() => {
         if (dependencyToolForm) {
-            updateModal(`${ROOT_ID}-tool`, { modal: dependencyToolForm });
+            updateModal(TOOL_ID, { modal: dependencyToolForm });
         }
     }, [dependencyToolForm]);
 

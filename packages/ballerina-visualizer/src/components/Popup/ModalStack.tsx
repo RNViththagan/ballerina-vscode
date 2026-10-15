@@ -62,9 +62,6 @@ export const ModalStack: React.FC = () => {
                 const top = group[topIndex];
                 const below = groups[groupIndex - 1];
 
-                const sizeOf = (pick: (item: ModalStackItem) => number | undefined) =>
-                    pick(top) ?? (group.reduce((max, item) => Math.max(max, pick(item) ?? 0), 0) || undefined);
-
                 const breadcrumbs: PopupFormBreadcrumb[] = group.map((item, index) => ({
                     id: item.id,
                     label: item.title,
@@ -75,8 +72,8 @@ export const ModalStack: React.FC = () => {
                     <Popup
                         key={group[0].id}
                         title={top.title}
-                        width={sizeOf((item) => item.width)}
-                        height={sizeOf((item) => item.height)}
+                        width={top.width}
+                        height={top.height}
                         onClose={below ? () => popToModal(below[below.length - 1].id) : clearModals}
                         onBack={topIndex > 0 ? popModal : undefined}
                         breadcrumbs={breadcrumbs}

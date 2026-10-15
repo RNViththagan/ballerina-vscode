@@ -167,7 +167,7 @@ export const PopupForm = (props: PopupFormProps) => {
 
     return (
         <PopupFormContainer>
-            <PopupFormBox width={width} height={height}>
+            <PopupFormBox role="dialog" aria-modal="true" aria-label={title} width={width} height={height}>
                 <PopupFormHeader>
                     {onBack && (
                         <Button appearance="icon" onClick={onBack} tooltip="Back" data-testid="popup-back-btn">
