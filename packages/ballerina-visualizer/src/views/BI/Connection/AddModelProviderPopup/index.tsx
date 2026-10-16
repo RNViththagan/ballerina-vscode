@@ -45,12 +45,19 @@ function ModelProviderForm({ nodeId, metadata, fileName, onSaved, onFailed }: Mo
     const [template, setTemplate] = useState<FlowNode>();
 
     useEffect(() => {
+        let active = true;
         getNodeTemplateForConnection(nodeId, metadata, undefined, fileName, rpcClient)
-            .then(({ flowNode }) => setTemplate(flowNode))
+            .then(({ flowNode }) => active && setTemplate(flowNode))
             .catch((error) => {
                 console.error("Error fetching model provider template", error);
-                onFailed();
+                // A later selection reuses CREATE_ID, so a stale failure must not close its modal.
+                if (active) {
+                    onFailed();
+                }
             });
+        return () => {
+            active = false;
+        };
     }, [nodeId]);
 
     if (!template) {
