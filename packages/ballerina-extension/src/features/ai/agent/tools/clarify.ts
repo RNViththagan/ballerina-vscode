@@ -59,7 +59,7 @@ Call this ONLY for genuine requirement gaps. Use smart defaults first:
 When asking, include a recommended option labelled with "(recommended)".
 Offer only options you could carry out if picked; if one depends on something the user may not have, say so in its label and don't recommend it.
 Do NOT ask about library/connector selection or implementation details that can be defaulted.
-Call AT MOST ONCE per task — batch all questions into a single call.`,
+Call AT MOST ONCE per task — batch all questions into a single call.${profile.clarifyScopeRule}`,
         inputSchema: ClarifyInputSchema,
         execute: async (input, context?: { toolCallId?: string }): Promise<{ answers: Array<{ question: string; answers: string[] }> } | { skipped: boolean }> => {
             const toolCallId = context?.toolCallId || `fallback-${Date.now()}`;

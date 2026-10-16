@@ -31,6 +31,7 @@ export interface CopilotProfile {
     terminology: string;
     moduleInitRules: string;
     clarifyEntryPointDefault: string;
+    clarifyScopeRule: string;
     taskWriter: TaskWriterWording;
     followups: FollowupWording;
 }
@@ -86,6 +87,7 @@ Answer queries related to Ballerina and integrations. If a query is unrelated, p
         terminology: `In WSO2 Integrator, a Ballerina workspace is called a **project** and a Ballerina package is called an **integration**.
 - You MUST always use "project" and "integration" in all responses and clarifying questions. Never use "workspace" or "package" when communicating with the user.`,
         moduleInitRules: MODULE_INIT_CODING_RULES,
+        clarifyScopeRule: "",
         clarifyEntryPointDefault: "Default to HTTP for simple service requests. Ask only when the trigger type is ambiguous and the choice materially affects the design.",
         taskWriter: {
             typeDescription: "service_design: creates the service contract only (no implementation). implementation: all other implementation tasks. execution: executing the implemented logic(run, try it, test) — include only if the user has explicitly asked for execution.",
@@ -126,6 +128,7 @@ Politely decline anything unrelated to Ballerina or agents.`,
         terminology: `In WSO2 Agent Builder, a Ballerina workspace is called a **project** and a Ballerina package is called an **agentic integration**.
 - You MUST always use "project" and "agentic integration" in all responses and clarifying questions. Never use "workspace" or "package" when communicating with the user.`,
         moduleInitRules: AGENT_MODULE_INIT_CODING_RULES,
+        clarifyScopeRule: "\nNever use this tool to ask whether the user wants a proposed agent instead of what they asked for; that question goes in your reply text. This tool is for the requirements of work the user has already agreed to.",
         clarifyEntryPointDefault: "Default to a chat trigger, so the agent can be tried in chat. Ask only when how the agent should be started is ambiguous and the choice materially affects the design.",
         taskWriter: {
             typeDescription: "agent_design: creates the agent, its system prompt, model provider, trigger and tool signatures (no tool logic). implementation: all other implementation tasks. execution: executing the implemented logic(run, chat, try it, test, evaluate) — include only if the user has explicitly asked for execution.",
