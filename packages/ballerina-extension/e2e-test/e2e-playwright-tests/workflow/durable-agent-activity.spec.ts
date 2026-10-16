@@ -116,7 +116,8 @@ export default function createTests() {
             await capability.waitFor({ timeout: 60000 });
 
             logStep('Open the registered entry and check its edit form');
-            await capability.click({ force: true });
+            // Not forced: the canvas re-lays out once the circle appears, and a forced click can land on its old spot.
+            await capability.click();
             await saveButton.waitFor({ state: 'visible', timeout: 60000 });
             // The name and description show what the runtime uses, read-only: the function's name and doc comment.
             await expect(webview.getByText('Activity Name', { exact: true })).toBeVisible();
