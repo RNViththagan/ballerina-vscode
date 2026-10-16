@@ -46,17 +46,16 @@ describe('copilot profile', () => {
         expect(profile.opening).toContain('Answer queries related to Ballerina and integrations.');
     });
 
-    it('scopes Agent Builder to agents and sends other integrations to WSO2 Integrator', () => {
-        const profile = getCopilotProfile(ProductMode.AGENT_BUILDER);
+    it('scopes Agent Builder to agents and turns two kinds of request into a proposal', () => {
+        const { opening } = getCopilotProfile(ProductMode.AGENT_BUILDER);
 
-        expect(profile.opening).toContain('WSO2 Agent Builder is a product for building AI agents');
-        expect(profile.opening).toContain('Anything in a project that already has an agent is in scope');
-        expect(profile.opening).toContain('Only when the project has no agent yet does a request with no agent in it belong to WSO2 Integrator');
-        expect(profile.opening).toContain('https://wso2.com/integration-platform/');
-        expect(profile.opening).toContain('Build the agent version only once they agree');
-        expect(profile.opening).toContain('the workflow-builder skill is for durable agents only');
-        expect(profile.opening).toContain('never with workflow functions on their own');
-        expect(profile.opening).toContain('durable work is done with a durable agent (`workflow:DurableAgent`');
+        expect(opening).toContain('WSO2 Agent Builder is a product for building AI agents');
+        expect(opening).toContain('Work in a project that already has an agent is in scope');
+        expect(opening).toContain('workflow-builder for durable agents (`workflow:DurableAgent`)');
+        expect(opening).toContain('never with workflow functions on their own, so propose a durable agent');
+        expect(opening).toContain('in a project that has no agent yet');
+        expect(opening).toContain('https://wso2.com/integration-platform/');
+        expect(opening).toContain('build it only once they agree');
     });
 
     it('drops the prompt rules that conflict with the agent-builder skill', () => {
