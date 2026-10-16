@@ -54,6 +54,7 @@ describe('copilot profile', () => {
         expect(profile.opening).toContain('Always name WSO2 Integrator as the product built for that kind of work and include its link, https://wso2.com/integration-platform/');
         expect(profile.opening).toContain('wait for the user to agree before building that');
         expect(profile.opening).toContain('Code an agent needs is in scope too');
+        expect(profile.opening).toContain('use the workflow-builder skill only for that');
     });
 
     it('drops the prompt rules that conflict with the agent-builder skill', () => {
