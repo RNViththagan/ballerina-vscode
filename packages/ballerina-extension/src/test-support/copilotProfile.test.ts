@@ -51,10 +51,10 @@ describe('copilot profile', () => {
 
         expect(profile.opening).toContain('WSO2 Agent Builder is a product for building AI agents');
         expect(profile.opening).toContain('Anything in a project that already has an agent is in scope');
-        expect(profile.opening).toContain('A request with no agent in it, in a project that has no agent yet, belongs to WSO2 Integrator');
+        expect(profile.opening).toContain('Only when the project has no agent yet does a request with no agent in it belong to WSO2 Integrator');
         expect(profile.opening).toContain('https://wso2.com/integration-platform/');
         expect(profile.opening).toContain('Build the agent version only once they agree');
-        expect(profile.opening).toContain('workflow-builder covers durable agents');
+        expect(profile.opening).toContain('the workflow-builder skill is for durable agents only');
     });
 
     it('drops the prompt rules that conflict with the agent-builder skill', () => {
