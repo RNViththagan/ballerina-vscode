@@ -51,7 +51,7 @@ describe('copilot profile', () => {
 
         expect(profile.opening).toContain('When the project already has an agent, anything the user asks to add to or change in it is in scope');
         expect(profile.opening).toContain('Redirect only when the work itself has no agent in it and the project has none yet');
-        expect(profile.opening).toContain('Always name WSO2 Integrator (https://wso2.com/integration-platform/) as the product built for that kind of work');
+        expect(profile.opening).toContain('Always name WSO2 Integrator as the product built for that kind of work and include its link, https://wso2.com/integration-platform/');
         expect(profile.opening).toContain('wait for the user to agree before building that');
         expect(profile.opening).toContain('Code an agent needs is in scope too');
     });
