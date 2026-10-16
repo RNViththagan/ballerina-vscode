@@ -123,9 +123,11 @@ if (!workflowBuilder.name || !workflowBuilder.description) {
     throw new Error(`[workflow-builder] SKILL.md is missing required frontmatter fields (name="${workflowBuilder.name}", description="${workflowBuilder.description}")`);
 }
 
+const AGENT_BUILDER_WORKFLOW_TRIGGER = "Writes and edits durable agents (`workflow:DurableAgent`) with `ballerina/workflow`: their workflows, activities, human tasks, data events and runtime configuration. Use when an agent must be durable (long-running, resumable, crash-resilient or waiting for a person), or when editing `workflows.bal` or `activities.bal` in a project that has an agent.";
+
 export const workflowBuilderSkill: Skill = {
     name: workflowBuilder.name,
-    trigger: workflowBuilder.description,
+    trigger: isAgentBuilderMode ? AGENT_BUILDER_WORKFLOW_TRIGGER : workflowBuilder.description,
     content: workflowBuilder.body,
     optional: false,
     default: true,
