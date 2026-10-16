@@ -55,8 +55,8 @@ describe('copilot profile', () => {
         expect(profile.opening).toContain('https://wso2.com/integration-platform/');
         expect(profile.opening).toContain('Build the agent version only once they agree');
         expect(profile.opening).toContain('the workflow-builder skill is for durable agents only');
-        expect(profile.opening).toContain('Do not write standalone durable workflows');
-        expect(profile.opening).toContain('durable work is done with a durable agent');
+        expect(profile.opening).toContain('never with workflow functions on their own');
+        expect(profile.opening).toContain('durable work is done with a durable agent (`workflow:DurableAgent`');
     });
 
     it('drops the prompt rules that conflict with the agent-builder skill', () => {

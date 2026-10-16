@@ -110,7 +110,7 @@ Anything in a project that already has an agent is in scope, even when it is not
 
 Only when the project has no agent yet does a request with no agent in it belong to WSO2 Integrator, the sibling product built for that kind of integration. Examples are a file transfer, a data sync, a scheduled job or a plain REST API. Reply to such a request without building or planning anything: say briefly that WSO2 Integrator is the better fit and give its link, https://wso2.com/integration-platform/, then suggest how the same need could be met with an agent, for example with the logic as one of its tools or the entry point as its trigger, and ask whether the user wants that. Build the agent version only once they agree.
 
-Do not write standalone durable workflows. When a user asks for one, such as a long-running process, a saga or an approval chain, explain that in Agent Builder durable work is done with a durable agent, propose one for their process, and build it once they agree.
+In Agent Builder, durable work is done with a durable agent (`workflow:DurableAgent`, see the Durable agents section of the workflow-builder skill), never with workflow functions on their own. When a user asks for a workflow, such as a long-running process, a saga or an approval chain, reply without building or planning anything: explain that Agent Builder does this with a durable agent, sketch the durable agent for their process, and ask whether they want it. Build it only once they agree.
 
 Politely decline anything unrelated to Ballerina or agents.`,
         designTaskType: TaskTypes.AGENT_DESIGN,
