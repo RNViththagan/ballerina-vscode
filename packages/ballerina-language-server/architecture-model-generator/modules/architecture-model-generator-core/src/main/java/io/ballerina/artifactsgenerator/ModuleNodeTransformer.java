@@ -55,18 +55,24 @@ import java.util.Optional;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static io.ballerina.modelgenerator.commons.CommonUtils.CHUNKER;
 import static io.ballerina.modelgenerator.commons.CommonUtils.CONNECTOR_TYPE;
+import static io.ballerina.modelgenerator.commons.CommonUtils.DATA_LOADER;
+import static io.ballerina.modelgenerator.commons.CommonUtils.EMBEDDING_PROVIDER;
+import static io.ballerina.modelgenerator.commons.CommonUtils.KNOWLEDGE_BASE;
+import static io.ballerina.modelgenerator.commons.CommonUtils.MEMORY_STORE;
 import static io.ballerina.modelgenerator.commons.CommonUtils.MODEL_PROVIDER;
 import static io.ballerina.modelgenerator.commons.CommonUtils.PERSIST;
 import static io.ballerina.modelgenerator.commons.CommonUtils.PERSIST_MODEL_FILE;
+import static io.ballerina.modelgenerator.commons.CommonUtils.VECTOR_STORE;
 import static io.ballerina.modelgenerator.commons.CommonUtils.getPersistModelFilePath;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAgentClass;
-import static io.ballerina.modelgenerator.commons.CommonUtils.isAiFixedTypedAgent;
-import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDependentlyTypedAgent;
-import static io.ballerina.modelgenerator.commons.CommonUtils.isAiMemoryStore;
-import static io.ballerina.modelgenerator.commons.CommonUtils.isAiKnowledgeBase;
-import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDataLoader;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiChunker;
+import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDataLoader;
+import static io.ballerina.modelgenerator.commons.CommonUtils.isAiDependentlyTypedAgent;
+import static io.ballerina.modelgenerator.commons.CommonUtils.isAiFixedTypedAgent;
+import static io.ballerina.modelgenerator.commons.CommonUtils.isAiKnowledgeBase;
+import static io.ballerina.modelgenerator.commons.CommonUtils.isAiMemoryStore;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isAiVectorStore;
 import static io.ballerina.modelgenerator.commons.CommonUtils.isPersistClient;
 
@@ -84,12 +90,12 @@ public class ModuleNodeTransformer extends NodeTransformer<Optional<Artifact>> {
 
     private static final List<Map.Entry<Predicate<Symbol>, String>> AI_COMPONENT_KINDS = List.of(
             Map.entry(CommonUtils::isAiModelProvider, MODEL_PROVIDER),
-            Map.entry(CommonUtils::isAiEmbeddingProvider, "embeddingProvider"),
-            Map.entry(CommonUtils::isAiVectorStore, "vectorStore"),
-            Map.entry(CommonUtils::isAiKnowledgeBase, "knowledgeBase"),
-            Map.entry(CommonUtils::isAiMemoryStore, "memoryStore"),
-            Map.entry(CommonUtils::isAiChunker, "chunker"),
-            Map.entry(CommonUtils::isAiDataLoader, "dataLoader"));
+            Map.entry(CommonUtils::isAiEmbeddingProvider, EMBEDDING_PROVIDER),
+            Map.entry(CommonUtils::isAiVectorStore, VECTOR_STORE),
+            Map.entry(CommonUtils::isAiKnowledgeBase, KNOWLEDGE_BASE),
+            Map.entry(CommonUtils::isAiMemoryStore, MEMORY_STORE),
+            Map.entry(CommonUtils::isAiChunker, CHUNKER),
+            Map.entry(CommonUtils::isAiDataLoader, DATA_LOADER));
 
     private final SemanticModel semanticModel;
     private final String projectPath;
