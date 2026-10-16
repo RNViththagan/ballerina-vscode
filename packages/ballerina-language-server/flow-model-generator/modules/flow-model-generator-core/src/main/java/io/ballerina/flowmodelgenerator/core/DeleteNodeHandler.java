@@ -88,6 +88,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static io.ballerina.flowmodelgenerator.core.model.node.WaitDataBuilder.DATA_WAITS_KEY;
@@ -160,12 +161,19 @@ public class DeleteNodeHandler {
         Module modifiedModule = removeRanges(
                 project.duplicate().currentPackage().module(document.module().moduleId()), removals);
         DiagnosticResult diagnostics = modifiedModule.getCompilation().diagnostics();
+        // Other files only lose imports this delete made unused, not ones that were already unused.
+        Set<LineRange> alreadyUnused = document.module().getCompilation().diagnostics().diagnostics().stream()
+                .filter(DeleteNodeHandler::isUnusedImport)
+                .map(diagnostic -> diagnostic.location().lineRange())
+                .collect(Collectors.toSet());
+        Function<DocumentId, Path> pathOf = documentId -> documentId.equals(document.documentId()) ? filePath
+                : project.documentPath(documentId).orElseThrow();
 
         Map<Path, List<TextEdit>> textEditsMap = new HashMap<>();
         for (DocumentId documentId : removals.keySet()) {
-            Path path = documentId.equals(document.documentId()) ? filePath
-                    : project.documentPath(documentId).orElseThrow();
-            textEditsMap.put(path, unusedImportEdits(modifiedModule.document(documentId), diagnostics));
+            Set<LineRange> skipped = documentId.equals(document.documentId()) ? Set.of() : alreadyUnused;
+            textEditsMap.put(pathOf.apply(documentId),
+                    unusedImportEdits(modifiedModule.document(documentId), diagnostics, skipped));
         }
 
         LineRange nodeRangeToDelete = checkElseToDelete(document, startTextPosition, endTextPosition);
@@ -174,21 +182,26 @@ public class DeleteNodeHandler {
         }
         textEditsMap.get(filePath).add(new TextEdit(CommonUtils.toRange(nodeRangeToDelete), ""));
         for (ListenerRemoval listener : unusedListeners) {
-            Path path = listener.documentId().equals(document.documentId()) ? filePath
-                    : project.documentPath(listener.documentId()).orElseThrow();
-            textEditsMap.get(path).add(new TextEdit(CommonUtils.toRange(listener.node().lineRange()), ""));
+            textEditsMap.get(pathOf.apply(listener.documentId()))
+                    .add(new TextEdit(CommonUtils.toRange(listener.node().lineRange()), ""));
         }
         return gson.toJsonTree(textEditsMap);
     }
 
-    private static List<TextEdit> unusedImportEdits(Document modifiedDoc, DiagnosticResult diagnostics) {
+    private static boolean isUnusedImport(Diagnostic diagnostic) {
+        DiagnosticInfo diagnosticInfo = diagnostic.diagnosticInfo();
+        return diagnosticInfo.severity() == DiagnosticSeverity.ERROR
+                && diagnosticInfo.code().equals(DiagnosticErrorCode.UNUSED_MODULE_PREFIX.diagnosticId());
+    }
+
+    private static List<TextEdit> unusedImportEdits(Document modifiedDoc, DiagnosticResult diagnostics,
+                                                    Set<LineRange> skipped) {
         NodeList<ImportDeclarationNode> imports = ((ModulePartNode) modifiedDoc.syntaxTree().rootNode()).imports();
         List<TextEdit> textEdits = new ArrayList<>();
         for (Diagnostic diagnostic : diagnostics.diagnostics()) {
-            DiagnosticInfo diagnosticInfo = diagnostic.diagnosticInfo();
-            if (diagnosticInfo.severity() != DiagnosticSeverity.ERROR
-                    || !diagnosticInfo.code().equals(DiagnosticErrorCode.UNUSED_MODULE_PREFIX.diagnosticId())
-                    || !diagnostic.location().lineRange().fileName().equals(modifiedDoc.name())) {
+            LineRange range = diagnostic.location().lineRange();
+            if (!isUnusedImport(diagnostic) || !range.fileName().equals(modifiedDoc.name())
+                    || skipped.contains(range)) {
                 continue;
             }
             ImportDeclarationNode importNode = getUnusedImport(diagnostic.location().lineRange(), imports);
@@ -263,7 +276,7 @@ public class DeleteNodeHandler {
             return List.of();
         }
         SemanticModel semanticModel = document.module().getCompilation().getSemanticModel();
-        List<ListenerRemoval> unused = new ArrayList<>();
+        Map<LineRange, ListenerRemoval> unused = new LinkedHashMap<>();
         for (ExpressionNode expression : service.get().expressions()) {
             Optional<Symbol> symbol = semanticModel.symbol(expression);
             Optional<Location> declared = symbol.flatMap(Symbol::getLocation);
@@ -276,9 +289,9 @@ public class DeleteNodeHandler {
                             .allMatch(ref -> ref.lineRange().equals(declared.get().lineRange())
                                     || (ref.lineRange().fileName().equals(document.name())
                                     && PositionUtil.isWithinLineRange(ref.lineRange(), service.get().lineRange()))))
-                    .ifPresent(unused::add);
+                    .ifPresent(listener -> unused.putIfAbsent(listener.node().lineRange(), listener));
         }
-        return unused;
+        return List.copyOf(unused.values());
     }
 
     private static Optional<ListenerRemoval> listenerDeclaration(Module module, Location declared) {
