@@ -1074,6 +1074,7 @@ export enum TaskStatus {
 
 export enum TaskTypes {
     SERVICE_DESIGN = "service_design",
+    AGENT_DESIGN = "agent_design",
     IMPLEMENTATION = "implementation",
     EXECUTION = "execution"
 }
