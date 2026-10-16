@@ -256,7 +256,7 @@ public class DeleteNodeHandler {
         ModulePartNode root = document.syntaxTree().rootNode();
         Optional<ServiceDeclarationNode> service = root.members().stream()
                 .filter(member -> member.kind() == SyntaxKind.SERVICE_DECLARATION
-                        && member.textRange().startOffset() <= start && end <= member.textRange().endOffset())
+                        && start <= member.textRange().startOffset() && member.textRange().endOffset() <= end)
                 .map(ServiceDeclarationNode.class::cast)
                 .findFirst();
         if (service.isEmpty()) {
