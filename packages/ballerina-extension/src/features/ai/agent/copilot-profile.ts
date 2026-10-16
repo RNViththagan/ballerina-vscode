@@ -27,6 +27,7 @@ export interface CopilotProfile {
     planTaskTypes: string;
     /** Ends with a newline when present, so the next bullet stays on its own line. */
     automationRule: string;
+    workflowLibraryRule: string;
     terminology: string;
     moduleInitRules: string;
     clarifyEntryPointDefault: string;
@@ -80,6 +81,7 @@ function integratorProfile(): CopilotProfile {
 Answer queries related to Ballerina and integrations. If a query is unrelated, politely decline.`,
         designTaskType: TaskTypes.SERVICE_DESIGN,
         planTaskTypes: INTEGRATOR_PLAN_TASK_TYPES,
+        workflowLibraryRule: "- For workflow-based requirements involving long-running processes, state management, or orchestration of multiple steps, use the 'ballerina/workflow' module.\n",
         automationRule: "- In WSO2 Integrator, Automation is simply an app with a main method unless user specifically mentions a service. Cron Job kind of requirements are handled in the deployment level for Kubernetes or Integration platform level.\n",
         terminology: `In WSO2 Integrator, a Ballerina workspace is called a **project** and a Ballerina package is called an **integration**.
 - You MUST always use "project" and "integration" in all responses and clarifying questions. Never use "workspace" or "package" when communicating with the user.`,
@@ -120,6 +122,7 @@ Politely decline anything unrelated to Ballerina or agents.`,
         designTaskType: TaskTypes.AGENT_DESIGN,
         planTaskTypes: AGENT_BUILDER_PLAN_TASK_TYPES,
         automationRule: "",
+        workflowLibraryRule: "- Durable or long-running behaviour is a durable agent (`workflow:DurableAgent`, workflow-builder skill), never workflow functions on their own.\n",
         terminology: `In WSO2 Agent Builder, a Ballerina workspace is called a **project** and a Ballerina package is called an **agentic integration**.
 - You MUST always use "project" and "agentic integration" in all responses and clarifying questions. Never use "workspace" or "package" when communicating with the user.`,
         moduleInitRules: AGENT_MODULE_INIT_CODING_RULES,
