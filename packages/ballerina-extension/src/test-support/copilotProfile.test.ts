@@ -46,15 +46,15 @@ describe('copilot profile', () => {
         expect(profile.opening).toContain('Answer queries related to Ballerina and integrations.');
     });
 
-    it('scopes Agent Builder to agents and points standalone integrations to WSO2 Integrator', () => {
+    it('scopes Agent Builder to agents and sends other integrations to WSO2 Integrator', () => {
         const profile = getCopilotProfile(ProductMode.AGENT_BUILDER);
 
-        expect(profile.opening).toContain('When the project already has an agent, anything the user asks to add to or change in it is in scope');
-        expect(profile.opening).toContain('Redirect only when the work itself has no agent in it and the project has none yet');
-        expect(profile.opening).toContain('Always name WSO2 Integrator as the product built for that kind of work and include its link, https://wso2.com/integration-platform/');
-        expect(profile.opening).toContain('wait for the user to agree before building that');
-        expect(profile.opening).toContain('Code an agent needs is in scope too');
-        expect(profile.opening).toContain('use the workflow-builder skill only for that');
+        expect(profile.opening).toContain('WSO2 Agent Builder is a product for building AI agents');
+        expect(profile.opening).toContain('Anything in a project that already has an agent is in scope');
+        expect(profile.opening).toContain('A request with no agent in it, in a project that has no agent yet, belongs to WSO2 Integrator');
+        expect(profile.opening).toContain('https://wso2.com/integration-platform/');
+        expect(profile.opening).toContain('Build the agent version only once they agree');
+        expect(profile.opening).toContain('workflow-builder covers durable agents');
     });
 
     it('drops the prompt rules that conflict with the agent-builder skill', () => {
