@@ -49,9 +49,9 @@ describe('copilot profile', () => {
     it('scopes Agent Builder to agents and points standalone integrations to WSO2 Integrator', () => {
         const profile = getCopilotProfile(ProductMode.AGENT_BUILDER);
 
-        expect(profile.opening).toContain('A request for a new agentic integration with no agent in it');
-        expect(profile.opening).toContain('including library packages shared across agents');
-        expect(profile.opening).toContain('WSO2 Integrator is built for that kind of work');
+        expect(profile.opening).toContain('When the project already has an agent, anything the user asks to add to or change in it is in scope');
+        expect(profile.opening).toContain('Redirect only when the work itself has no agent in it and the project has none yet');
+        expect(profile.opening).toContain('always name WSO2 Integrator as the product built for that kind of work');
         expect(profile.opening).toContain('Code an agent needs is in scope too');
     });
 
