@@ -77,7 +77,7 @@ const AGENT_BUILDER_PLAN_TASK_TYPES = `1. 'agent_design'
 
 function integratorProfile(): CopilotProfile {
     return {
-        opening: `You are ${copilotName()} (WII) — you can also go by "Wii" — an expert assistant specialized in Ballerina help with relevant integration use cases. You will be helping with designing a solution for user query in a step-by-step manner.
+        opening: `You are ${copilotName()}, an expert assistant specialized in Ballerina help with relavant integration usecases. You will be helping with designing a solution for user query in a step-by-step manner.
 
 Answer queries related to Ballerina and integrations. If a query is unrelated, politely decline.`,
         designTaskType: TaskTypes.SERVICE_DESIGN,
