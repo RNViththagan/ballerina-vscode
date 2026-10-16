@@ -46,16 +46,14 @@ describe('copilot profile', () => {
         expect(profile.opening).toContain('Answer queries related to Ballerina and integrations.');
     });
 
-    it('scopes Agent Builder to agents and turns two kinds of request into a proposal', () => {
+    it('decides in Agent Builder whether to build, propose a durable agent, or point to WSO2 Integrator', () => {
         const { opening } = getCopilotProfile(ProductMode.AGENT_BUILDER);
 
-        expect(opening).toContain('WSO2 Agent Builder is a product for building AI agents');
-        expect(opening).toContain('Work in a project that already has an agent is in scope');
-        expect(opening).toContain('workflow-builder for durable agents (`workflow:DurableAgent`)');
-        expect(opening).toContain('never with workflow functions on their own, so propose a durable agent');
-        expect(opening).toContain('in a project that has no agent yet');
+        expect(opening).toContain('In a project that already has an agent, everything the user asks for is in scope');
+        expect(opening).toContain('never as workflow functions on their own. Propose a durable agent');
         expect(opening).toContain('https://wso2.com/integration-platform/');
-        expect(opening).toContain('build it only once they agree');
+        expect(opening).toContain('Build the proposed agent only after the user agrees');
+        expect(opening).toContain('(`workflow:DurableAgent`)');
     });
 
     it('drops the prompt rules that conflict with the agent-builder skill', () => {
