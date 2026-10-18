@@ -730,19 +730,24 @@ export function AIEvaluationFormBody(props: AIEvaluationFormBodyProps) {
         };
         const updatedTestFunction = fillFunctionModel(formData, formImports);
         const evalTemplate = buildEvalTemplatePayload(data);
-        if (serviceType === 'UPDATE_TEST') {
-            await rpcClient.getTestManagerRpcClient().updateTestFunction({
+        const saved = serviceType === 'UPDATE_TEST'
+            ? await rpcClient.getTestManagerRpcClient().updateTestFunction({
                 function: updatedTestFunction,
                 filePath,
                 ...(evalTemplate && isTemplateRecognised && { evalTemplate })
-            });
-        } else {
-            await rpcClient.getTestManagerRpcClient().addTestFunction({
+            })
+            : await rpcClient.getTestManagerRpcClient().addTestFunction({
                 function: updatedTestFunction,
                 filePath,
                 targetAgent: agentName,
                 ...(evalTemplate && { evalTemplate })
             });
+        if (saved?.errorMsg) {
+            await rpcClient.getCommonRpcClient().showErrorMessage({
+                message: `Failed to save the evaluation. ${saved.errorMsg}`
+            });
+            setIsSaving(false);
+            return;
         }
         if (onSaved && (evalTemplate || isEditing)) {
             onSaved();

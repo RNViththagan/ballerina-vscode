@@ -107,10 +107,15 @@ export function TestFunctionForm(props: TestFunctionDefProps) {
         console.log("Test Function Form Data: ", data);
         const updatedTestFunction = fillFunctionModel(data, formImports);
         console.log("Test Function: ", updatedTestFunction);
-        if (serviceType === 'UPDATE_TEST') {
-            await rpcClient.getTestManagerRpcClient().updateTestFunction({ function: updatedTestFunction, filePath });
-        } else {
-            await rpcClient.getTestManagerRpcClient().addTestFunction({ function: updatedTestFunction, filePath });
+        const saved = serviceType === 'UPDATE_TEST'
+            ? await rpcClient.getTestManagerRpcClient().updateTestFunction({ function: updatedTestFunction, filePath })
+            : await rpcClient.getTestManagerRpcClient().addTestFunction({ function: updatedTestFunction, filePath });
+        if (saved?.errorMsg) {
+            await rpcClient.getCommonRpcClient().showErrorMessage({
+                message: `Failed to save the test case. ${saved.errorMsg}`
+            });
+            setIsSaving(false);
+            return;
         }
         try {
             const res = await rpcClient.getTestManagerRpcClient().getTestFunction(
