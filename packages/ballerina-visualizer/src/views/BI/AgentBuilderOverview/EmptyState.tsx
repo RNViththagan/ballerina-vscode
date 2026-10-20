@@ -16,7 +16,7 @@
  * under the License.
  */
 
-import { CSSProperties, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { CSSProperties, useCallback, useEffect, useRef, useState } from "react";
 import { keyframes } from "@emotion/react";
 import styled from "@emotion/styled";
 import { AgentRunStatus, AIMachineSnapshot, AIMachineStateValue } from "@wso2/ballerina-core";
@@ -24,9 +24,7 @@ import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { Button, Codicon, Icon, ThemeColors } from "@wso2/ui-toolkit";
 import {
     awaitingInputLabel,
-    AmbientFrame,
     ACCENT_CORE,
-    ACCENT_FRAME,
     ACCENT_SPHERE,
     SpinArc,
     frameTriple,
@@ -39,7 +37,12 @@ import {
     useAiPanelOpen,
     useSuppressAgentStatusOrb,
 } from "../../../components/AgentStatusOrb/shared";
-import { openCopilotPanel, submitPromptToCopilot } from "../../../components/AgentStatusOrb/CopilotHeroBox";
+import { openCopilotPanel, submitPromptToCopilot } from "../../../components/AgentStatusOrb/copilotPanel";
+import {
+    CopilotPromptBox,
+    CopilotPromptBoxHandle,
+    PromptSubmitOptions,
+} from "../../../components/CopilotPromptBox";
 import { useAssistantName } from "../../../hooks/useProductMode";
 import { LoadingRing } from "../../../components/Loader";
 import LoginPanel from "../../AIPanel/LoginPanel";
@@ -49,9 +52,6 @@ import { PopupModal } from "../../../components/PopupModal";
 import { CloseButton } from "../Connection/styles";
 
 const CONTENT_WIDTH = 760;
-
-const INPUT_MIN_HEIGHT = 46;
-const INPUT_MAX_HEIGHT = 100;
 
 const EXIT_MS = 680;
 const RUN_START_TIMEOUT_MS = 10000;
@@ -300,87 +300,10 @@ const Subtitle = styled.p<{ live?: boolean }>`
         props.live ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)"};
 `;
 
-const Composer = styled.div`
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 12px 12px 8px;
-    border-radius: 12.5px;
-    background: var(--vscode-editorWidget-background);
-`;
-
 const ComposerRow = styled.div`
     width: 100%;
     max-width: ${CONTENT_WIDTH}px;
     margin-top: 32px;
-`;
-
-const ComposerFrame = styled(AmbientFrame)`
-    padding: 1px;
-`;
-
-const PromptInput = styled.textarea`
-    border: none;
-    outline: none;
-    resize: none;
-    background: transparent;
-    color: var(--vscode-input-foreground);
-    font-family: var(--vscode-font-family);
-    font-size: 14px;
-    line-height: 1.5;
-    min-height: ${INPUT_MIN_HEIGHT}px;
-    max-height: ${INPUT_MAX_HEIGHT}px;
-    overflow-y: auto;
-    scrollbar-width: none;
-
-    &::-webkit-scrollbar {
-        display: none;
-    }
-
-    &::placeholder {
-        color: var(--vscode-input-placeholderForeground);
-    }
-`;
-
-const ComposerFooter = styled.div`
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-`;
-
-const RoundButton = styled.button<{ primary?: boolean }>`
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    border: none;
-    border-radius: 50%;
-    background: ${(props: { primary?: boolean }) => (props.primary ? "var(--vscode-button-background)" : "transparent")};
-    color: ${(props: { primary?: boolean }) => (props.primary ? "var(--vscode-button-foreground)" : "var(--vscode-foreground)")};
-    cursor: pointer;
-
-    & > div {
-        width: 16px;
-        height: 16px;
-        line-height: 16px;
-    }
-
-    &:hover:not(:disabled) {
-        background: var(--vscode-toolbar-hoverBackground);
-    }
-
-    &:disabled {
-        opacity: 0.4;
-        cursor: default;
-    }
-`;
-
-const FooterLeft = styled.div`
-    display: flex;
-    align-items: center;
-    gap: 6px;
 `;
 
 const FooterHint = styled.span`
@@ -547,12 +470,11 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
     const [text, setText] = useState("");
     const [submittedPrompt, setSubmittedPrompt] = useState<string>();
     const [aiSnapshot, setAiSnapshot] = useState<AIMachineSnapshot>();
-    const [pendingPrompt, setPendingPrompt] = useState<string>();
+    const [pendingPrompt, setPendingPrompt] = useState<{ prompt: string; options: PromptSubmitOptions }>();
     const [setupRequested, setSetupRequested] = useState(false);
     const [startFailed, setStartFailed] = useState(false);
     const [idleMounted, setIdleMounted] = useState(true);
-    const inputRef = useRef<HTMLTextAreaElement>(null);
-    const focusOnTextRef = useRef(false);
+    const promptRef = useRef<CopilotPromptBoxHandle>(null);
     const runStartedRef = useRef(false);
 
     const aiPanelOpen = useAiPanelOpen();
@@ -581,20 +503,6 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
         refreshAiSnapshot();
         rpcClient.onAIPanelStateChanged(refreshAiSnapshot);
     }, [rpcClient, refreshAiSnapshot]);
-
-    useLayoutEffect(() => {
-        const input = inputRef.current;
-        if (!input) {
-            return;
-        }
-        input.style.height = "auto";
-        input.style.height = `${Math.min(input.scrollHeight, INPUT_MAX_HEIGHT)}px`;
-        if (focusOnTextRef.current) {
-            focusOnTextRef.current = false;
-            input.focus();
-            input.setSelectionRange(input.value.length, input.value.length);
-        }
-    }, [text]);
 
     const state = status?.state ?? "idle";
     const working = state !== "idle";
@@ -654,30 +562,30 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
 
     const openCopilot = () => openCopilotPanel(rpcClient);
 
-    const dispatch = (prompt: string) => {
-        const trimmed = prompt.trim();
-        if (submitPromptToCopilot(rpcClient, trimmed, { newThread: true, hiddenContext: copy.hiddenContext })) {
-            setSubmittedPrompt(trimmed);
+    const dispatch = async (prompt: string, options: PromptSubmitOptions) => {
+        const handedOff = await submitPromptToCopilot(rpcClient, prompt, {
+            ...options,
+            newThread: true,
+            hiddenContext: copy.hiddenContext,
+        });
+        if (handedOff) {
+            setSubmittedPrompt(prompt);
             setText("");
         }
+        return handedOff;
     };
 
-    const send = async (prompt: string) => {
-        const trimmed = prompt.trim();
-        if (!trimmed) {
-            openCopilot();
-            return;
-        }
+    const send = async (prompt: string, options: PromptSubmitOptions) => {
         setStartFailed(false);
         const authenticated =
             authState === "authenticated" ||
             (await rpcClient?.getAiPanelRpcClient().isUserAuthenticated().catch(() => false));
         if (!authenticated) {
             refreshAiSnapshot();
-            setPendingPrompt(trimmed);
-            return;
+            setPendingPrompt({ prompt, options });
+            return false;
         }
-        dispatch(trimmed);
+        return dispatch(prompt, options);
     };
 
     const openSetup = () => {
@@ -695,7 +603,7 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
             return;
         }
         setPendingPrompt(undefined);
-        dispatch(text.trim() || pendingPrompt);
+        void dispatch(text.trim() || pendingPrompt.prompt, pendingPrompt.options);
     }, [authState, pendingPrompt, text]);
 
     useEffect(() => {
@@ -704,10 +612,21 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
         }
     }, [authState]);
 
-    const fillExample = (prompt: string) => {
-        focusOnTextRef.current = true;
-        setText(prompt);
-    };
+    const setupHint =
+        authState === "unauthenticated" ? (
+            <FooterHint>
+                <LinkButton type="button" onClick={openSetup}>
+                    Set up AI
+                </LinkButton>{" "}
+                to generate
+            </FooterHint>
+        ) : authState === "connecting" ? (
+            <FooterHint>
+                <LinkButton type="button" onClick={openSetup}>
+                    Finish setting up AI
+                </LinkButton>
+            </FooterHint>
+        ) : undefined;
 
     const setupModal = showSetup && (
         <PopupModal
@@ -806,60 +725,16 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
 
                         <ExitGroup $out={showRun} $delay={110}>
                             <ComposerRow>
-                                <ComposerFrame $variant="hero" $state={state} $agentBuilder $colors={ACCENT_FRAME}>
-                                    <Composer>
-                                        <PromptInput
-                                            ref={inputRef}
-                                            rows={2}
-                                            value={text}
-                                            onChange={(event) => setText(event.target.value)}
-                                            onKeyDown={(event) => {
-                                                if (event.key === "Enter" && !event.shiftKey) {
-                                                    event.preventDefault();
-                                                    void send(text);
-                                                }
-                                            }}
-                                            placeholder={copy.placeholder}
-                                            aria-label={copy.inputLabel}
-                                        />
-                                        <ComposerFooter>
-                                            <FooterLeft>
-                                                <RoundButton
-                                                    type="button"
-                                                    title={`Open ${assistantName}`}
-                                                    onClick={openCopilot}
-                                                >
-                                                    <Codicon name="add" />
-                                                </RoundButton>
-                                                {authState === "unauthenticated" && (
-                                                    <FooterHint>
-                                                        <LinkButton type="button" onClick={openSetup}>
-                                                            Set up AI
-                                                        </LinkButton>{" "}
-                                                        to generate
-                                                    </FooterHint>
-                                                )}
-                                                {authState === "connecting" && (
-                                                    <FooterHint>
-                                                        <LinkButton type="button" onClick={openSetup}>
-                                                            Finish setting up AI
-                                                        </LinkButton>
-                                                    </FooterHint>
-                                                )}
-                                            </FooterLeft>
-                                            <RoundButton
-                                                type="button"
-                                                title={`Send to ${assistantName}`}
-                                                aria-label={`Send to ${assistantName}`}
-                                                disabled={!text.trim()}
-                                                onClick={() => void send(text)}
-                                                primary={true}
-                                            >
-                                                <Codicon name="arrow-up" />
-                                            </RoundButton>
-                                        </ComposerFooter>
-                                    </Composer>
-                                </ComposerFrame>
+                                <CopilotPromptBox
+                                    ref={promptRef}
+                                    value={text}
+                                    onChange={setText}
+                                    onSubmit={send}
+                                    placeholder={copy.placeholder}
+                                    ariaLabel={copy.inputLabel}
+                                    state={state}
+                                    hint={setupHint}
+                                />
                             </ComposerRow>
 
                             {startFailed && (
@@ -882,7 +757,7 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
                                         <Card
                                             key={example.name}
                                             type="button"
-                                            onClick={() => fillExample(example.prompt)}
+                                            onClick={() => promptRef.current?.fill(example.prompt)}
                                         >
                                             <Icon
                                                 name={example.icon}

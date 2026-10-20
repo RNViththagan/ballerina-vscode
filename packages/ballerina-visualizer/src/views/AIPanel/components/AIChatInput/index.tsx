@@ -51,6 +51,7 @@ import RunningServicesChip, { RunningServicesPanel } from "./RunningServicesChip
 import McpToolsChip from "./McpToolsChip";
 import { ACCENT_FRAME, AmbientFrame } from "../../../../components/AgentStatusOrb/shared";
 import { useProductMode } from "../../../../hooks/useProductMode";
+import { SEND_ICON, SendButton } from "../../../../components/CopilotPromptBox";
 import { ProductMode } from "@wso2/ballerina-core";
 
 
@@ -780,17 +781,14 @@ const AIChatInput = forwardRef<AIChatInputRef, AIChatInputProps>(
                                     <ActionButton title="Attach Context" onClick={handleAttachClick}>
                                         <Icon name="Paperclip" sx={{ fontSize: "16px" }} />
                                     </ActionButton>
-                                    <div style={{ width: "1px", height: "16px", background: "var(--vscode-panel-border)", margin: "0 2px" }} />
-                                    <ActionButton
+                                    <div style={{ width: "1px", height: "16px", background: "var(--vscode-panel-border)", margin: "0 8px 0 2px" }} />
+                                    <SendButton
                                         title={isLoading ? "Stop (Escape)" : "Send (Enter)"}
                                         disabled={(inputValue.text.trim() === "" && !isLoading) || disabled}
                                         onClick={isLoading ? handleStop : handleSend}
                                     >
-                                        {isLoading
-                                            ? <span className="codicon codicon-stop-circle"></span>
-                                            : <Icon name="Send" sx={{ fontSize: "16px" }} />
-                                        }
-                                    </ActionButton>
+                                        {isLoading ? <span className="codicon codicon-stop-circle"></span> : SEND_ICON}
+                                    </SendButton>
                                 </div>
                             </ActionRow>
                         </InputArea>
