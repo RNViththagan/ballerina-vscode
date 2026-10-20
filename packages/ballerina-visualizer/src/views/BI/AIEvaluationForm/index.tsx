@@ -648,6 +648,12 @@ export function AIEvaluationFormBody(props: AIEvaluationFormBodyProps) {
 
     const loadFunction = async (options = evalsetOptions, templates = evalTemplates) => {
         const res = await rpcClient.getTestManagerRpcClient().getTestFunction({ functionName, filePath });
+        if (!res.function) {
+            await rpcClient.getCommonRpcClient().showErrorMessage({
+                message: `Failed to load the evaluation. ${res.errorMsg ?? 'It was not found in the file.'}`
+            });
+            return;
+        }
         setTestFunction(res.function);
 
         const detected = await detectTemplateFromSource(res.function, templates);

@@ -90,6 +90,12 @@ export function TestFunctionForm(props: TestFunctionDefProps) {
     const loadFunction = async () => {
         const res = await rpcClient.getTestManagerRpcClient().getTestFunction({ functionName, filePath });
         console.log("Test Function: ", res);
+        if (!res.function) {
+            await rpcClient.getCommonRpcClient().showErrorMessage({
+                message: `Failed to load the test case. ${res.errorMsg ?? 'It was not found in the file.'}`
+            });
+            return;
+        }
         setTestFunction(res.function);
         let formFields = generateFormFields(res.function);
         setFormFields(formFields);
