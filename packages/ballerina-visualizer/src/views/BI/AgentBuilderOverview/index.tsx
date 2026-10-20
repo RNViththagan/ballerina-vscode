@@ -34,6 +34,7 @@ import { TopNavigationBar } from "../../../components/TopNavigationBar";
 import { DeploymentPanel, SidePanel } from "../../../components/DeploymentControl";
 import { useDeploymentControl } from "../../../hooks/useDeploymentControl";
 import { getIntegrationTypes, hasWorkflowArtifacts, validateComponentName, useProjectContentRefresh } from "../PackageOverview/utils";
+import { hasLibraryArtifacts } from "../PackageOverview/LibraryOverview";
 import { useTracingStatus } from "../../../hooks/useProductMode";
 import { EmptyState } from "./EmptyState";
 import { openAgent, openServiceConfig, openTrigger } from "../AgentTopology/topologyNavigation";
@@ -44,6 +45,9 @@ const LazyAgentTopology = React.lazy(() => import("../AgentTopology"));
 const LazyAddAgentPopup = React.lazy(() => import("../AIChatAgent/AddAgentPopup"));
 const LazyAddLibraryArtifactPopup = React.lazy(() => import("./AddLibraryArtifactPopup"));
 const LazyAddMcpServicePopup = React.lazy(() => import("./AddMcpServicePopup"));
+const LazyPackageOverview = React.lazy(() =>
+    import("../PackageOverview").then((module) => ({ default: module.PackageOverview }))
+);
 
 const Page = styled.div`
     display: flex;
@@ -492,14 +496,24 @@ export function AgentBuilderOverview({ projectPath, agentFocus, isInDevant, isIC
         </>
     );
 
+    const loadingPage = (
+        <Page>
+            {isInProject && <TopNavigationBar projectPath={projectPath} bordered />}
+            <CenteredSlot>
+                <ProgressRing color={ThemeColors.PRIMARY} />
+            </CenteredSlot>
+        </Page>
+    );
+
     if (!projectStructure) {
+        return loadingPage;
+    }
+
+    if (isLibrary && hasLibraryArtifacts(projectStructure.directoryMap)) {
         return (
-            <Page>
-                {isInProject && <TopNavigationBar projectPath={projectPath} bordered />}
-                <CenteredSlot>
-                    <ProgressRing color={ThemeColors.PRIMARY} />
-                </CenteredSlot>
-            </Page>
+            <React.Suspense fallback={loadingPage}>
+                <LazyPackageOverview projectPath={projectPath} isInDevant={isInDevant} isICPSupported={isICPSupported} />
+            </React.Suspense>
         );
     }
 
