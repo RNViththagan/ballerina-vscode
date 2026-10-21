@@ -274,12 +274,12 @@ export function TopNavigationBar(props: TopNavigationBarProps) {
     // Build the dedicated breadcrumb trail from the history.
     const breadcrumbItems = useMemo(
         () => {
-            const items = buildBreadcrumbItems(history, skippedViews, hasMultiplePackages);
-            const activeIndex = history.length - 1;
-            // The Agent Builder overview already shows the project title.
-            return isAgentBuilder && history[activeIndex]?.location.view === MACHINE_VIEW.PackageOverview
-                ? items.filter((item) => item.historyIndex !== activeIndex)
-                : items;
+            const activeView = history[history.length - 1]?.location.view;
+            // The overview shows the project title, and history may hold a stale trail beneath it.
+            if (isAgentBuilder && activeView === MACHINE_VIEW.PackageOverview) {
+                return [];
+            }
+            return buildBreadcrumbItems(history, skippedViews, hasMultiplePackages);
         },
         [history, skippedViews, hasMultiplePackages, isAgentBuilder]
     );
