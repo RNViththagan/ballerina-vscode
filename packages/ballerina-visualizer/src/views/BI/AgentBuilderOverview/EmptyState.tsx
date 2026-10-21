@@ -421,7 +421,7 @@ const CardDescription = styled.span`
     overflow: hidden;
 
     /* Two card rows (below a 728px-wide panel) need more height than one. */
-    @container welcome ((max-height: 700px) and (max-width: 727px)) or (max-height: 580px) {
+    @container welcome ((max-height: 700px) and (max-width: 727px)) or (max-height: 520px) {
         display: none;
     }
 `;

@@ -782,13 +782,19 @@ const AIChatInput = forwardRef<AIChatInputRef, AIChatInputProps>(
                                         <Icon name="Paperclip" sx={{ fontSize: "16px" }} />
                                     </ActionButton>
                                     <div style={{ width: "1px", height: "16px", background: "var(--vscode-panel-border)", margin: "0 8px 0 2px" }} />
-                                    <SendButton
-                                        title={isLoading ? "Stop (Escape)" : "Send (Enter)"}
-                                        disabled={(inputValue.text.trim() === "" && !isLoading) || disabled}
-                                        onClick={isLoading ? handleStop : handleSend}
-                                    >
-                                        {isLoading ? <span className="codicon codicon-stop-circle"></span> : SEND_ICON}
-                                    </SendButton>
+                                    {isLoading ? (
+                                        <ActionButton title="Stop (Escape)" disabled={disabled} onClick={handleStop}>
+                                            <span className="codicon codicon-stop-circle"></span>
+                                        </ActionButton>
+                                    ) : (
+                                        <SendButton
+                                            title="Send (Enter)"
+                                            disabled={inputValue.text.trim() === "" || disabled}
+                                            onClick={handleSend}
+                                        >
+                                            {SEND_ICON}
+                                        </SendButton>
+                                    )}
                                 </div>
                             </ActionRow>
                         </InputArea>
