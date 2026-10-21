@@ -38,6 +38,7 @@ import { approvalManager } from '../../state/ApprovalManager';
 import { SUBAGENT_TOOL_NAME } from "../subagents/types";
 import { recordAiTouchedFile } from "../../../../rpc-managers/diagram-validity";
 import { addToIntegration } from "../../../../rpc-managers/ai-panel/utils";
+import { saveIfUnsaved, unsavedChangesError } from "../../utils/project/unsaved-documents";
 import { writeBallerinaFileDidOpen } from "../../../../utils/modification";
 import { isSupportedSpecVersion, resolveProvidedSpec, SpecContext, specVersion, withRelativeSpecPath } from "./connector-spec-source";
 import { blockingValidationMessages, implementsServiceContract, selectOpenApiDesign, toServiceTypeName } from "./openapi-service-model";
@@ -366,6 +367,13 @@ async function writeGeneratedEdits(
     modifiedFiles?: string[]
 ): Promise<Array<{ path: string; content: string }>> {
     const generatedFiles: Array<{ path: string; content: string }> = [];
+
+    // Checked for every file up front so a refusal doesn't leave the edits half applied.
+    for (const filePath of Object.keys(textEditsMap)) {
+        if (!(await saveIfUnsaved(filePath))) {
+            throw new Error(unsavedChangesError(path.relative(tempProjectPath, filePath)));
+        }
+    }
 
     for (const [filePath, edits] of Object.entries(textEditsMap)) {
         const content = await applyTextEdits(filePath, edits);

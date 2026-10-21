@@ -1,0 +1,87 @@
+/**
+ * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com) All Rights Reserved.
+ *
+ * WSO2 LLC. licenses this file to you under the Apache License,
+ * Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied. See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+
+jest.mock("@wso2/ballerina-core", () => ({}));
+jest.mock("../features/ai/state/ApprovalManager", () => ({ approvalManager: {} }));
+jest.mock("../features/ai/activator", () => ({ langClient: undefined }));
+jest.mock("../BalExtensionContext", () => ({ extension: {} }));
+jest.mock("../rpc-managers/platform-ext/managed-connections", () => ({ getManagedLibraries: jest.fn() }));
+
+import { workspace } from "./__mocks__/vscode";
+import { ConfigCollectorTool } from "../features/ai/agent/tools/config-collector";
+
+const CONFIG = '[myorg.mypkg]\napiKey = "old"\ntimeout = 5\n';
+
+let root: string;
+let configPath: string;
+
+function unsavedConfigEditor(saves: boolean) {
+    const document = {
+        uri: { fsPath: configPath, scheme: "file", toString: () => `file://${configPath}` },
+        isDirty: true,
+        save: jest.fn(async () => {
+            document.isDirty = !saves;
+            return saves;
+        }),
+    };
+    workspace.textDocuments = [document];
+    return document;
+}
+
+const remove = () => ConfigCollectorTool(
+    { mode: "remove", variableNames: ["timeout"] } as never,
+    jest.fn(),
+    { tempPath: root, workspacePath: root }
+);
+
+beforeEach(() => {
+    root = fs.mkdtempSync(path.join(os.tmpdir(), "unsaved-config-"));
+    fs.writeFileSync(path.join(root, "Ballerina.toml"), '[package]\norg = "myorg"\nname = "mypkg"\nversion = "0.1.0"\n');
+    configPath = path.join(root, "Config.toml");
+    fs.writeFileSync(configPath, CONFIG);
+    workspace.textDocuments = [];
+});
+
+afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+});
+
+describe("config collector with an unsaved Config.toml", () => {
+    it("saves the editor before removing keys", async () => {
+        const document = unsavedConfigEditor(true);
+
+        const result = await remove();
+
+        expect(document.save).toHaveBeenCalled();
+        expect(result.success).toBe(true);
+    });
+
+    it("refuses to rewrite Config.toml when it cannot be saved", async () => {
+        unsavedConfigEditor(false);
+
+        const result = await remove();
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("unsaved changes");
+        expect(fs.readFileSync(configPath, "utf8")).toBe(CONFIG);
+    });
+});

@@ -42,6 +42,7 @@ import { RecoverableAgentError, resolveContained, resolvePackageBasePath } from 
 import { getOrgPackageName } from "../../../../utils/config";
 import { langClient } from "../../activator";
 import { extension } from "../../../../BalExtensionContext";
+import { saveIfUnsaved, unsavedChangesError } from "../../utils/project/unsaved-documents";
 import {
     getManagedLibraries,
     ManagedLibrariesResponse,
@@ -201,6 +202,13 @@ function validateConfigVariables(
         }
     }
     return null; // Valid
+}
+
+/** The writers read Config.toml from disk and write it back, which would drop unsaved editor text. */
+async function saveConfigOrThrow(configPath: string, packageBasePath: string): Promise<void> {
+    if (!(await saveIfUnsaved(configPath))) {
+        throw new RecoverableAgentError(unsavedChangesError(path.relative(packageBasePath, configPath)), "UNSAVED_CHANGES");
+    }
 }
 
 function createErrorResult(errorCode: string, message: string): ConfigCollectorResult {
@@ -736,12 +744,17 @@ async function handleCollectMode(
 
     // Determine paths based on isTestConfig flag
     const configPath = getConfigPath(packageBasePath, isTestConfig);
+    // Only pre-populates the form; the write below refuses if the file still can't be saved.
+    await saveIfUnsaved(configPath);
 
     // Priority: tests/Config.toml → Config.toml → empty
     const mainConfigPath = path.join(packageBasePath, "Config.toml");
     const sourceConfigPath = isTestConfig
         ? (fs.existsSync(configPath) ? configPath : mainConfigPath)
         : configPath;
+    if (sourceConfigPath !== configPath) {
+        await saveIfUnsaved(sourceConfigPath);
+    }
 
     // Read existing configuration values from source config (if they exist) for pre-populating the form
     const existingValues = readExistingConfigValues(
@@ -815,6 +828,10 @@ async function handleCollectMode(
     const preservedCount = notProvided.length - skippedNew.length;
     console.log(`[ConfigCollector] collect saved=${providedCount} skippedNew=${skippedNew.length} preserved=${preservedCount} requested=${enrichedVariables.length} file=${configFileName}`);
 
+    // Edited while the form was open. A plain Error so handleError also closes the form.
+    if (!(await saveIfUnsaved(configPath))) {
+        throw new Error(unsavedChangesError(path.relative(packageBasePath, configPath)));
+    }
     writeConfigValuesToConfig(configPath, provided, [...enrichedVariables, ...allSourceVariables], orgName, packageName);
 
     // Track modified file for syncing to workspace.
@@ -886,6 +903,7 @@ async function handleCheckMode(
         configPath = getConfigPath(packageBasePath, isTestConfig);
         configFileName = getConfigFileName(isTestConfig);
     }
+    await saveIfUnsaved(configPath);
 
     if (!fs.existsSync(configPath)) {
         return {
@@ -955,6 +973,7 @@ async function handleRemoveMode(
 
     const configPath = getConfigPath(packageBasePath, isTestConfig);
     const configFileName = getConfigFileName(isTestConfig);
+    await saveConfigOrThrow(configPath, packageBasePath);
 
     if (!fs.existsSync(configPath)) {
         return {
@@ -1038,6 +1057,7 @@ async function handleRenameMode(
 
     const configPath = getConfigPath(packageBasePath, isTestConfig);
     const configFileName = getConfigFileName(isTestConfig);
+    await saveConfigOrThrow(configPath, packageBasePath);
 
     if (!fs.existsSync(configPath)) {
         return createErrorResult(

@@ -26,6 +26,7 @@ import { applyEdit, contentsEquivalent } from "../../utils/edit-replacement";
 import { addToIntegration } from "../../../../rpc-managers/ai-panel/utils";
 import { recordAiTouchedFile } from "../../../../rpc-managers/diagram-validity";
 import { seedNewPackageBaseline } from "../../utils/project/ls-schema-notifications";
+import { saveIfUnsaved, unsavedChangesError } from "../../utils/project/unsaved-documents";
 
 /**
  * Serializes the read-modify-write cycle per file. Each tool reads from disk and writes back
@@ -269,7 +270,29 @@ const ErrorMessages = {
   FILE_READ_NOT_PERMITTED: 'File read not permitted',
   WRITE_FAILED: 'Write operation failed',
   WRITE_NOT_PERSISTED: 'Change was not persisted to disk',
+  UNSAVED_CHANGES: 'File has unsaved changes in the editor',
 };
+
+/** Writes replace the whole document, so a file with unsaved editor text that won't save must not be touched. */
+async function refuseIfUnsaved(
+  ctx: ExecutionContext | undefined,
+  fullPath: string,
+  file_path: string,
+  toolName: string,
+  eventHandler: CopilotEventHandler
+): Promise<TextEditorResult | undefined> {
+  if (!ctx || await saveIfUnsaved(fullPath)) {
+    return undefined;
+  }
+  console.error(`[TextEditorTool] ${file_path} has unsaved changes that could not be saved.`);
+  const result = {
+    success: false,
+    message: unsavedChangesError(file_path),
+    error: `Error: ${ErrorMessages.UNSAVED_CHANGES}`
+  };
+  emitFileToolResult(eventHandler, toolName, result, file_path);
+  return result;
+}
 
 // ============================================================================
 // Validation Functions
@@ -407,6 +430,10 @@ export function createWriteExecute(
     }
 
     const fullPath = path.join(tempProjectPath, file_path);
+    const unsavedRefusal = await refuseIfUnsaved(ctx, fullPath, file_path, FILE_WRITE_TOOL_NAME, eventHandler);
+    if (unsavedRefusal) {
+      return unsavedRefusal;
+    }
 
     // Check if file exists (track for message generation)
     const fileExists = fs.existsSync(fullPath);
@@ -529,6 +556,10 @@ export function createEditExecute(
     }
 
     const fullPath = path.join(tempProjectPath, file_path);
+    const unsavedRefusal = await refuseIfUnsaved(ctx, fullPath, file_path, FILE_SINGLE_EDIT_TOOL_NAME, eventHandler);
+    if (unsavedRefusal) {
+      return unsavedRefusal;
+    }
 
     // Check if file exists
     if (!fs.existsSync(fullPath)) {
@@ -685,6 +716,10 @@ export function createMultiEditExecute(
     }
 
     const fullPath = path.join(tempProjectPath, file_path);
+    const unsavedRefusal = await refuseIfUnsaved(ctx, fullPath, file_path, FILE_BATCH_EDIT_TOOL_NAME, eventHandler);
+    if (unsavedRefusal) {
+      return unsavedRefusal;
+    }
 
     // Check if file exists
     if (!fs.existsSync(fullPath)) {
@@ -846,6 +881,9 @@ export function createReadExecute(
     }
 
     const fullPath = path.join(tempProjectPath, file_path);
+    const unsavedNote = (await saveIfUnsaved(fullPath))
+      ? ''
+      : '\nNote: the editor has unsaved changes to this file that could not be saved and are not shown here.';
 
     // Check if file exists
     if (!fs.existsSync(fullPath)) {
@@ -866,7 +904,7 @@ export function createReadExecute(
     // Handle empty file
     if (content.trim().length === 0) {
       console.log(`[FileReadTool] File is empty: ${file_path}`);
-      const result = { success: true, message: `File '${file_path}' is empty.` };
+      const result = { success: true, message: `File '${file_path}' is empty.${unsavedNote}` };
       emitFileToolResult(eventHandler, FILE_READ_TOOL_NAME, result, file_path);
       return result;
     }
@@ -897,7 +935,7 @@ export function createReadExecute(
       console.log(`[FileReadTool] Read lines ${offset} to ${endIndex} from file: ${file_path}`);
       const result = {
         success: true,
-        message: `Read lines ${offset} to ${endIndex} from '${file_path}' (${endIndex - startIndex} lines). \nContent:${rangedContent}`,
+        message: `Read lines ${offset} to ${endIndex} from '${file_path}' (${endIndex - startIndex} lines).${unsavedNote} \nContent:${rangedContent}`,
       };
       emitFileToolResult(eventHandler, FILE_READ_TOOL_NAME, result, file_path);
       return result;
@@ -909,7 +947,7 @@ export function createReadExecute(
     console.log(`[FileReadTool] Read entire file: ${file_path}, total lines: ${totalLines}`);
     const result = {
       success: true,
-      message: `Read entire file '${file_path}' (${totalLines} lines).\nContent:${truncatedContent}`,
+      message: `Read entire file '${file_path}' (${totalLines} lines).${unsavedNote}\nContent:${truncatedContent}`,
     };
     emitFileToolResult(eventHandler, FILE_READ_TOOL_NAME, result, file_path);
     return result;

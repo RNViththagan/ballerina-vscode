@@ -34,6 +34,9 @@ import { runEventStore } from "../utils/run-event-store";
 import { sendSaveChatNotification } from "../utils/ai-utils";
 import { finalizeRevertibleGeneration, finalizeRevertibleGenerationsAllThreads } from "../utils/generation-response";
 import { markConsoleOriginThread } from "./console-summary/origin";
+import { saveUnsavedDocuments } from "../utils/project/unsaved-documents";
+import * as path from "path";
+import { window } from "vscode";
 
 // ==================================
 // Agent Generation Functions
@@ -121,17 +124,29 @@ export async function generateAgent(params: GenerateAgentCodeRequest): Promise<b
         const projectRootPath = resolveProjectRootPath();
         const threadId = chatStateStorage.getActiveThread(projectRootPath)?.id ?? 'default';
 
-        // Only one generation may be in flight per thread at a time.
-        if (
-            chatStateStorage.getActiveExecution(projectRootPath, threadId)
-            || runEventStore.getRunStatus(projectRootPath, threadId).isRunning
-        ) {
-            throw new Error('A generation is already in progress. Please wait for it to finish before starting a new one.');
-        }
+        const assertCanStart = () => {
+            // Only one generation may be in flight per thread at a time.
+            if (
+                chatStateStorage.getActiveExecution(projectRootPath, threadId)
+                || runEventStore.getRunStatus(projectRootPath, threadId).isRunning
+            ) {
+                throw new Error('A generation is already in progress. Please wait for it to finish before starting a new one.');
+            }
 
-        // A restore is mid-flight: it is about to truncate this thread, and finalizing below would
-        // implicitly accept the very generation it is reverting.
-        assertNoRestoreInProgress(projectRootPath, 'generateAgent');
+            // A restore is mid-flight: it is about to truncate this thread, and finalizing below would
+            // implicitly accept the very generation it is reverting.
+            assertNoRestoreInProgress(projectRootPath, 'generateAgent');
+        };
+        assertCanStart();
+
+        // Before addGeneration, which captures the checkpoint from disk.
+        const unsavedPaths = await saveUnsavedDocuments(projectRootPath);
+        if (unsavedPaths.length > 0) {
+            const names = unsavedPaths.map(p => path.relative(projectRootPath, p)).join(', ');
+            window.showWarningMessage(`Copilot can't see your unsaved changes in ${names} and won't edit those files until you save them.`);
+        }
+        // Holds only while nothing between here and setActiveExecution awaits.
+        assertCanStart();
 
         // Moving on to a new generation implicitly accepts a still-open previous one —
         // on EVERY thread of the project, not just this one: the upcoming ai:// baseline
