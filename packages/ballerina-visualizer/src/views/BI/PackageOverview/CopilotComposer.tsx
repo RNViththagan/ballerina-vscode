@@ -25,8 +25,8 @@ import { useRpcContext } from "@wso2/ballerina-rpc-client";
 import { Button, Icon, ThemeColors } from "@wso2/ui-toolkit";
 import {
     ORB_GLOW_CLASS,
-    ORB_HOVER_BRIGHTNESS,
     ORB_SIZE,
+    OrbButton,
     OrbGlow,
     subscribeAgentRunStatus,
     syncOrbThemeFromSetting,
@@ -101,31 +101,6 @@ const Wrap = styled.div`
 const riseIn = keyframes`
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: none; }
-`;
-
-const OrbButton = styled.button<{ $interactive: boolean }>`
-    position: relative;
-    width: ${ORB_SIZE}px;
-    height: ${ORB_SIZE}px;
-    padding: 0;
-    border: none;
-    background: transparent;
-    outline-offset: 4px;
-    cursor: ${(props: { $interactive: boolean }) => (props.$interactive ? "pointer" : "default")};
-    transition: transform 0.2s ease;
-    &:hover {
-        transform: ${(props: { $interactive: boolean }) => (props.$interactive ? "scale(1.06)" : "none")};
-    }
-    &:active {
-        transform: ${(props: { $interactive: boolean }) => (props.$interactive ? "scale(0.98)" : "none")};
-    }
-    // Clears the ambient pulse's own 1.13 peak so the lift reads as a response, not the idle animation.
-    // Reached by class: interpolating OrbGlow would stringify to ".undefined" without @emotion/babel-plugin.
-    &:hover .${ORB_GLOW_CLASS},
-    &:focus-visible .${ORB_GLOW_CLASS} {
-        filter: ${(props: { $interactive: boolean }) =>
-            props.$interactive ? `brightness(${ORB_HOVER_BRIGHTNESS})` : "none"};
-    }
 `;
 
 const Heading = styled.h2`

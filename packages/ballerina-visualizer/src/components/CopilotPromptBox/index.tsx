@@ -210,11 +210,12 @@ interface CopilotPromptBoxProps {
     placeholder: string;
     ariaLabel: string;
     state: AgentRunState;
-    hint?: ReactNode;
+    /** Shown in place of the mode toggle and menu while AI is not set up. */
+    setupPrompt?: ReactNode;
 }
 
 export const CopilotPromptBox = forwardRef<CopilotPromptBoxHandle, CopilotPromptBoxProps>(function CopilotPromptBox(
-    { value, onChange, onSubmit, placeholder, ariaLabel, state, hint },
+    { value, onChange, onSubmit, placeholder, ariaLabel, state, setupPrompt },
     ref
 ) {
     const assistantName = useAssistantName();
@@ -300,10 +301,13 @@ export const CopilotPromptBox = forwardRef<CopilotPromptBoxHandle, CopilotPrompt
                 )}
                 <ActionRow>
                     <LeftControls>
-                        <ModeToggle mode={agentMode} onChange={setAgentMode} />
-                        <ControlDivider aria-hidden="true" />
-                        <CopilotMenu />
-                        {hint}
+                        {setupPrompt ?? (
+                            <>
+                                <ModeToggle mode={agentMode} onChange={setAgentMode} />
+                                <ControlDivider aria-hidden="true" />
+                                <CopilotMenu />
+                            </>
+                        )}
                     </LeftControls>
                     <RightControls>
                         <input

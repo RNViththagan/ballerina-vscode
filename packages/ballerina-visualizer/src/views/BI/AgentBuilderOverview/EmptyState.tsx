@@ -31,7 +31,10 @@ import {
     IconOverlay,
     AGENT_BUILDER_ORB_COLORS,
     ORB_ENERGY,
+    ORB_GLOW_CLASS,
     OrbAura,
+    OrbButton,
+    OrbGlow,
     Sphere,
     subscribeAgentRunStatus,
     useAiPanelOpen,
@@ -193,7 +196,8 @@ const Wrap = styled.div`
     flex-direction: column;
     align-items: center;
     justify-content: safe center;
-    padding: 40px 24px;
+    padding: clamp(16px, 5vh, 56px) 24px;
+    container: welcome / size;
 
     & > * {
         flex-shrink: 0;
@@ -241,7 +245,8 @@ const ExitGroup = styled.div<{ $out?: boolean; $delay?: number }>`
     align-items: center;
     width: 100%;
     opacity: ${(props: { $out?: boolean }) => (props.$out ? 0 : 1)};
-    transform: translateY(${(props: { $out?: boolean }) => (props.$out ? "-6px" : "0")});
+    /* "none" while shown: a transform would trap the Copilot menu under the next group. */
+    transform: ${(props: { $out?: boolean }) => (props.$out ? "translateY(-6px)" : "none")};
     transition: opacity 300ms ease, transform 300ms ease;
     transition-delay: ${(props: { $delay?: number }) => props.$delay ?? 0}ms;
 
@@ -276,7 +281,7 @@ const PromptEcho = styled.p`
 `;
 
 const CopilotName = styled.div`
-    margin-top: 20px;
+    margin-top: clamp(12px, 2.5cqh, 28px);
     color: var(--vscode-descriptionForeground);
     font-size: 14px;
     font-weight: 400;
@@ -285,7 +290,7 @@ const CopilotName = styled.div`
 
 const Heading = styled.h2`
     margin: 0;
-    font-size: 28px;
+    font-size: clamp(26px, 2.4cqi, 32px);
     font-weight: 300;
     color: var(--vscode-foreground);
     text-align: center;
@@ -303,7 +308,7 @@ const Subtitle = styled.p<{ live?: boolean }>`
 const ComposerRow = styled.div`
     width: 100%;
     max-width: ${CONTENT_WIDTH}px;
-    margin-top: 32px;
+    margin-top: clamp(16px, 4cqh, 44px);
 `;
 
 const FooterHint = styled.span`
@@ -350,7 +355,8 @@ const Notice = styled.div`
 const ExamplesBlock = styled.div`
     width: 100%;
     max-width: ${CONTENT_WIDTH}px;
-    margin-top: 40px;
+    margin-top: clamp(20px, 5cqh, 56px);
+    container-type: inline-size;
 `;
 
 const ExamplesLabel = styled.div`
@@ -364,7 +370,7 @@ const Cards = styled.div`
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
 
-    @media (max-width: 900px) {
+    @container (max-width: 679px) {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 `;
@@ -413,6 +419,11 @@ const CardDescription = styled.span`
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
+
+    /* Two card rows (below a 728px-wide panel) need more height than one. */
+    @container welcome ((max-height: 700px) and (max-width: 727px)) or (max-height: 580px) {
+        display: none;
+    }
 `;
 
 const ScratchLine = styled.p`
@@ -432,9 +443,14 @@ const ManualRow = styled.div`
     display: flex;
     align-items: center;
     gap: 8px;
-    margin-top: 28px;
+    margin-top: clamp(16px, 3.5cqh, 40px);
     color: var(--vscode-descriptionForeground);
     font-size: 13px;
+
+    /* Too short for everything: keep the manual route above the fold, examples scroll. */
+    @container welcome (max-height: 520px) {
+        order: -1;
+    }
 `;
 
 const LinkButton = styled.button`
@@ -555,6 +571,7 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
     const runDetail =
         state === "completed" ? undefined : status?.label ?? (running ? "Working on it…" : undefined);
     const showOpenCopilot = !aiPanelOpen;
+    const orbLabel = showOpenCopilot ? `Open ${assistantName}` : undefined;
     const authState = toAuthState(aiSnapshot?.state);
     const substate = authenticatingSubstate(aiSnapshot?.state);
     const showSetup =
@@ -680,21 +697,32 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
     return (
         <Wrap>
             {setupModal}
-            <OrbAura $active={showRun} $colors={orbGlow}>
-                <Sphere
-                    colors={orbColors}
-                    energy={ORB_ENERGY[state]}
-                    highlightColor={orbHighlight}
-                />
-                <IconOverlay>
-                    <Icon
-                        name="bi-ai-chat"
-                        sx={{ width: 26, height: 26 }}
-                        iconSx={{ fontSize: "26px", color: "#ffffff" }}
-                    />
-                </IconOverlay>
-                {(running || (showRun && !working)) && <SpinArc color={orbGlow[1]} />}
-            </OrbAura>
+            <OrbButton
+                type="button"
+                $interactive={showOpenCopilot}
+                disabled={!showOpenCopilot}
+                onClick={openCopilot}
+                title={orbLabel}
+                aria-label={orbLabel}
+            >
+                <OrbGlow className={ORB_GLOW_CLASS}>
+                    <OrbAura $active={showRun} $colors={orbGlow}>
+                        <Sphere
+                            colors={orbColors}
+                            energy={ORB_ENERGY[state]}
+                            highlightColor={orbHighlight}
+                        />
+                        <IconOverlay>
+                            <Icon
+                                name="bi-ai-chat"
+                                sx={{ width: 26, height: 26 }}
+                                iconSx={{ fontSize: "26px", color: "#ffffff" }}
+                            />
+                        </IconOverlay>
+                        {(running || (showRun && !working)) && <SpinArc color={orbGlow[1]} />}
+                    </OrbAura>
+                </OrbGlow>
+            </OrbButton>
 
             {showRun && (
                 <RunBlock>
@@ -733,7 +761,7 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
                                     placeholder={copy.placeholder}
                                     ariaLabel={copy.inputLabel}
                                     state={state}
-                                    hint={setupHint}
+                                    setupPrompt={setupHint}
                                 />
                             </ComposerRow>
 
