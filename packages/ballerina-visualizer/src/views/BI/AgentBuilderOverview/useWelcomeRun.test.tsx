@@ -39,7 +39,7 @@ describe("useWelcomeRun", () => {
     const status = (state: AgentRunState, generationId?: string): AgentRunStatus =>
         ({ state, generationId, aiPanelOpen: false, timestamp: 0 } as AgentRunStatus);
 
-    function Harness({ value, panelOpen }: { value: AgentRunStatus | null; panelOpen: boolean }) {
+    function Harness({ value, panelOpen }: { value: AgentRunStatus | null; panelOpen: boolean }): null {
         run = useWelcomeRun(value, panelOpen, (prompt) => restored.push(prompt));
         return null;
     }
