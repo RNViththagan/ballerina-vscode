@@ -239,7 +239,8 @@ export const CopilotPromptBox = forwardRef<CopilotPromptBoxHandle, CopilotPrompt
 
     useLayoutEffect(() => {
         const input = inputRef.current;
-        if (!input) {
+        // A hidden box measures 0 and would pin the textarea shut.
+        if (!input || input.offsetParent === null) {
             return;
         }
         input.style.height = "auto";

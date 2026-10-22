@@ -803,22 +803,22 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
                         </ExitGroup>
 
                         <ExitGroup $out={showRun} $delay={110}>
-                            {compact ? (
+                            {compact && (
                                 <Notice>Continue in the chat, or pick an example below to start it there.</Notice>
-                            ) : (
-                                <ComposerRow>
-                                    <CopilotPromptBox
-                                        ref={promptRef}
-                                        value={text}
-                                        onChange={setText}
-                                        onSubmit={send}
-                                        placeholder={copy.placeholder}
-                                        ariaLabel={copy.inputLabel}
-                                        state={state}
-                                        setupPrompt={setupHint}
-                                    />
-                                </ComposerRow>
                             )}
+                            {/* Hidden rather than unmounted, so attachments and the mode survive opening the chat. */}
+                            <ComposerRow style={compact ? { display: "none" } : undefined}>
+                                <CopilotPromptBox
+                                    ref={promptRef}
+                                    value={text}
+                                    onChange={setText}
+                                    onSubmit={send}
+                                    placeholder={copy.placeholder}
+                                    ariaLabel={copy.inputLabel}
+                                    state={state}
+                                    setupPrompt={setupHint}
+                                />
+                            </ComposerRow>
 
                             <RunNoticeLine notice={notice} assistantName={assistantName} onOpenChat={openCopilot} />
 
