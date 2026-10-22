@@ -57,7 +57,7 @@ export async function submitPromptToCopilot(
     options?: CopilotPromptOptions
 ): Promise<boolean> {
     const trimmed = prompt.trim();
-    if (!trimmed) {
+    if (!trimmed && !options?.attachments?.length) {
         openCopilotPanel(rpcClient);
         return false;
     }

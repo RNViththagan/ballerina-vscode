@@ -643,6 +643,28 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
             ? void submitPromptToCopilot(rpcClient, prompt, { autoSubmit: false, hiddenContext: copy.hiddenContext })
             : promptRef.current?.fill(prompt);
 
+    const fillChat = async (prompt: string, options: PromptSubmitOptions) => {
+        const taken = await submitPromptToCopilot(rpcClient, prompt, {
+            ...options,
+            autoSubmit: false,
+            hiddenContext: copy.hiddenContext,
+        });
+        if (taken) {
+            setText("");
+        }
+        return taken;
+    };
+
+    // Opening the chat takes the draft along; a send from this box opens it too, but is already on its way.
+    const panelWasOpenRef = useRef(aiPanelOpen);
+    useEffect(() => {
+        const opened = aiPanelOpen && !panelWasOpenRef.current;
+        panelWasOpenRef.current = aiPanelOpen;
+        if (opened && !showRun) {
+            void promptRef.current?.handOff(fillChat);
+        }
+    }, [aiPanelOpen]);
+
     const send = async (prompt: string, options: PromptSubmitOptions) => {
         clearNotice();
         const authenticated =

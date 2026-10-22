@@ -228,6 +228,7 @@ const AIChatInput = forwardRef<AIChatInputRef, AIChatInputProps>(
 
         const {
             attachments,
+            setAttachments,
             fileInputRef,
             handleAttachClick,
             onAttachmentSelection,
@@ -634,7 +635,7 @@ const AIChatInput = forwardRef<AIChatInputRef, AIChatInputProps>(
          */
         const updateChatInputWithContent = (content: AIPanelPrompt) => {
             setInputValue({ text: "", updatedContent: content });
-            removeAllAttachments();
+            setAttachments(content?.type === "text" ? content.attachments ?? [] : []);
 
             // Extract and store metadata safely
             if (content?.type === 'command-template') {

@@ -200,6 +200,8 @@ export type PromptSubmitOptions = Pick<CopilotPromptOptions, "planMode" | "attac
 export interface CopilotPromptBoxHandle {
     /** Replaces the text and puts the caret at its end. */
     fill: (prompt: string) => void;
+    /** Passes a non-empty draft to `send` and clears the attachments once it is taken. */
+    handOff: (send: (prompt: string, options: PromptSubmitOptions) => Promise<boolean>) => Promise<void>;
 }
 
 interface CopilotPromptBoxProps {
@@ -235,7 +237,15 @@ export const CopilotPromptBox = forwardRef<CopilotPromptBoxHandle, CopilotPrompt
             focusPendingRef.current = true;
             onChange(prompt);
         },
-    }), [onChange]);
+        handOff: async (send) => {
+            if (!value.trim() && attachments.length === 0) {
+                return;
+            }
+            if (await send(value.trim(), { planMode: agentMode === AgentMode.Plan, attachments })) {
+                removeAllAttachments();
+            }
+        },
+    }), [onChange, value, attachments, agentMode]);
 
     useLayoutEffect(() => {
         const input = inputRef.current;
