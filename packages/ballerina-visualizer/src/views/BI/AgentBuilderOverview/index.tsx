@@ -538,7 +538,7 @@ export function AgentBuilderOverview({ projectPath, agentFocus, isInDevant, isIC
                                         <BreadcrumbLabel>{OVERVIEW_TITLE}</BreadcrumbLabel>
                                         <StripActions>
                                             <AddAgentButton onClick={() => setShowAddAgent(true)} title="Add an agent to this project">
-                                                <Icon name="bi-plus" sx={{ fontSize: 16, width: 16, height: 16 }} />
+                                                <Icon name="bi-ai-agent" sx={{ fontSize: 16, width: 16, height: 16 }} />
                                                 Add Agent
                                             </AddAgentButton>
                                             {!isLibrary && (
@@ -546,7 +546,7 @@ export function AgentBuilderOverview({ projectPath, agentFocus, isInDevant, isIC
                                                     onClick={() => setShowAddMcpService(true)}
                                                     title="Add an MCP server to this project"
                                                 >
-                                                    <Icon name="bi-plus" sx={{ fontSize: 16, width: 16, height: 16 }} />
+                                                    <Icon name="bi-mcp" sx={{ fontSize: 16, width: 16, height: 16 }} />
                                                     Add MCP
                                                 </AddAgentButton>
                                             )}

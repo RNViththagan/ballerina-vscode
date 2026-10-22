@@ -98,6 +98,8 @@ interface EmptyStateCopy {
     placeholder: string;
     inputLabel: string;
     manualLabel: string;
+    manualIcon: string;
+    manualIconIsCodicon?: boolean;
     examples: Example[];
     hiddenContext: string;
 }
@@ -171,7 +173,8 @@ const AGENT_COPY: EmptyStateCopy = {
     heading: "What should your agent do?",
     placeholder: "Describe what you want your agent to do…",
     inputLabel: "Describe the agent you want to build",
-    manualLabel: "Add an agent manually",
+    manualLabel: "Add Agent",
+    manualIcon: "bi-ai-agent",
     examples: EXAMPLES,
     hiddenContext: "The target package is an agentic integration, which can carry its own triggers and services.",
 };
@@ -180,7 +183,9 @@ const LIBRARY_COPY: EmptyStateCopy = {
     heading: "What should this library provide?",
     placeholder: "Describe what you want this library to provide…",
     inputLabel: "Describe the library you want to build",
-    manualLabel: "Add a library artifact manually",
+    manualLabel: "Add Artifact",
+    manualIcon: "library",
+    manualIconIsCodicon: true,
     examples: LIBRARY_EXAMPLES,
     hiddenContext:
         "The target package is a Ballerina library. It has no runnable entry point, so do not add listeners, " +
@@ -449,18 +454,46 @@ const MANUAL_BUTTON_SX = {
     borderRadius: "6px",
 } as CSSProperties;
 
+const MANUAL_ICON_SX = { width: 16, height: 16, marginRight: 6 };
+const MANUAL_ICON_GLYPH_SX = { fontSize: "16px" };
+
 const ManualRow = styled.div`
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 8px;
+    gap: 12px;
+    width: 100%;
+    max-width: 440px;
     margin-top: clamp(16px, 3.5cqh, 40px);
-    color: var(--vscode-descriptionForeground);
-    font-size: 13px;
 
     /* Too short for everything: keep the manual route above the fold, examples scroll. */
     @container welcome (max-height: 520px) {
         order: -1;
     }
+`;
+
+const ScratchDivider = styled.div`
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    color: var(--vscode-descriptionForeground);
+    font-size: 12px;
+
+    &::before,
+    &::after {
+        content: "";
+        flex: 1 1 auto;
+        height: 1px;
+        background: var(--vscode-panel-border, var(--vscode-editorWidget-border));
+    }
+`;
+
+const ManualButtons = styled.div`
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
 `;
 
 const LinkButton = styled.button`
@@ -817,26 +850,32 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
                             </ExamplesBlock>
 
                             <ManualRow>
-                                or
-                                <Button
-                                    appearance="secondary"
-                                    onClick={onCreateFromScratch}
-                                    buttonSx={MANUAL_BUTTON_SX}
-                                >
-                                    {copy.manualLabel}
-                                </Button>
-                                {onAddMcpService && (
-                                    <>
-                                        or
+                                <ScratchDivider>Or start from scratch</ScratchDivider>
+                                <ManualButtons>
+                                    <Button
+                                        appearance="secondary"
+                                        onClick={onCreateFromScratch}
+                                        buttonSx={MANUAL_BUTTON_SX}
+                                    >
+                                        <Icon
+                                            name={copy.manualIcon}
+                                            isCodicon={copy.manualIconIsCodicon}
+                                            sx={MANUAL_ICON_SX}
+                                            iconSx={MANUAL_ICON_GLYPH_SX}
+                                        />
+                                        {copy.manualLabel}
+                                    </Button>
+                                    {onAddMcpService && (
                                         <Button
                                             appearance="secondary"
                                             onClick={onAddMcpService}
                                             buttonSx={MANUAL_BUTTON_SX}
                                         >
-                                            Add an MCP Server manually
+                                            <Icon name="bi-mcp" sx={MANUAL_ICON_SX} iconSx={MANUAL_ICON_GLYPH_SX} />
+                                            Add MCP Server
                                         </Button>
-                                    </>
-                                )}
+                                    )}
+                                </ManualButtons>
                             </ManualRow>
                         </ExitGroup>
                     </div>
