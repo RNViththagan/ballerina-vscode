@@ -32,7 +32,7 @@ async function save(document: TextDocument): Promise<boolean> {
     return (await document.save()) || !document.isDirty;
 }
 
-/** Saves every unsaved file under `root`; returns the paths that are still unsaved. */
+/** Returns the paths that are still unsaved. */
 export async function saveUnsavedDocuments(root: string): Promise<string[]> {
     const unsaved = workspace.textDocuments.filter(
         (document) => isUnsavedFile(document) && isPathInside(root, document.uri.fsPath)

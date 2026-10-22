@@ -39,6 +39,9 @@ function unsavedConfigEditor(saves: boolean) {
         uri: { fsPath: configPath, scheme: "file", toString: () => `file://${configPath}` },
         isDirty: true,
         save: jest.fn(async () => {
+            if (saves) {
+                fs.writeFileSync(configPath, `${CONFIG}extra = 1\n`);
+            }
             document.isDirty = !saves;
             return saves;
         }),
@@ -47,8 +50,8 @@ function unsavedConfigEditor(saves: boolean) {
     return document;
 }
 
-const remove = () => ConfigCollectorTool(
-    { mode: "remove", variableNames: ["timeout"] } as never,
+const remove = (name: string) => ConfigCollectorTool(
+    { mode: "remove", variableNames: [name] } as never,
     jest.fn(),
     { tempPath: root, workspacePath: root }
 );
@@ -66,19 +69,19 @@ afterEach(() => {
 });
 
 describe("config collector with an unsaved Config.toml", () => {
-    it("saves the editor before removing keys", async () => {
-        const document = unsavedConfigEditor(true);
+    it("removes a key that only exists in the unsaved editor text", async () => {
+        unsavedConfigEditor(true);
 
-        const result = await remove();
+        const result = await remove("extra");
 
-        expect(document.save).toHaveBeenCalled();
         expect(result.success).toBe(true);
+        expect(fs.readFileSync(configPath, "utf8")).toBe(CONFIG);
     });
 
     it("refuses to rewrite Config.toml when it cannot be saved", async () => {
         unsavedConfigEditor(false);
 
-        const result = await remove();
+        const result = await remove("timeout");
 
         expect(result.success).toBe(false);
         expect(result.message).toContain("unsaved changes");

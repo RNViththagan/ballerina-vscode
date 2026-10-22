@@ -828,7 +828,7 @@ async function handleCollectMode(
     const preservedCount = notProvided.length - skippedNew.length;
     console.log(`[ConfigCollector] collect saved=${providedCount} skippedNew=${skippedNew.length} preserved=${preservedCount} requested=${enrichedVariables.length} file=${configFileName}`);
 
-    // Edited while the form was open. A plain Error so handleError also closes the form.
+    // Edited while the form was open. A plain Error so handleError reports the error stage to the chat card.
     if (!(await saveIfUnsaved(configPath))) {
         throw new Error(unsavedChangesError(path.relative(packageBasePath, configPath)));
     }
