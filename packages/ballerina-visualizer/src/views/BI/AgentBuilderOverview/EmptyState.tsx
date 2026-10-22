@@ -47,6 +47,7 @@ import {
     PromptSubmitOptions,
 } from "../../../components/CopilotPromptBox";
 import { useAssistantName } from "../../../hooks/useProductMode";
+import { RunNotice, useWelcomeRun } from "./useWelcomeRun";
 import { LoadingRing } from "../../../components/Loader";
 import LoginPanel from "../../AIPanel/LoginPanel";
 import WaitingForLogin from "../../AIPanel/WaitingForLoginSection";
@@ -57,7 +58,6 @@ import { CloseButton } from "../Connection/styles";
 const CONTENT_WIDTH = 760;
 
 const EXIT_MS = 680;
-const RUN_START_TIMEOUT_MS = 10000;
 
 type AuthState = "unknown" | "authenticated" | "unauthenticated" | "connecting" | "disabled";
 
@@ -375,6 +375,9 @@ const Cards = styled.div`
     }
 `;
 
+// Two card rows (below a 728px-wide panel) need more height than one.
+const SHORT_PANEL = "welcome ((max-height: 700px) and (max-width: 727px)) or (max-height: 520px)";
+
 const Card = styled.button`
     display: flex;
     flex-direction: column;
@@ -391,6 +394,14 @@ const Card = styled.button`
 
     &:hover {
         background: var(--vscode-toolbar-hoverBackground);
+    }
+
+    @container ${SHORT_PANEL} {
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-start;
+        gap: 10px;
+        padding: 10px 12px;
     }
 `;
 
@@ -420,8 +431,7 @@ const CardDescription = styled.span`
     -webkit-box-orient: vertical;
     overflow: hidden;
 
-    /* Two card rows (below a 728px-wide panel) need more height than one. */
-    @container welcome ((max-height: 700px) and (max-width: 727px)) or (max-height: 520px) {
+    @container ${SHORT_PANEL} {
         display: none;
     }
 `;
@@ -472,6 +482,34 @@ const LinkButton = styled.button`
     }
 `;
 
+interface RunNoticeLineProps {
+    notice?: RunNotice;
+    assistantName: string;
+    onOpenChat: () => void;
+}
+
+function RunNoticeLine({ notice, assistantName, onOpenChat }: RunNoticeLineProps) {
+    const link = (label: string) => (
+        <LinkButton type="button" onClick={onOpenChat}>
+            {label}
+        </LinkButton>
+    );
+    switch (notice) {
+        case "start-failed":
+            return <Notice>{assistantName} didn’t start. Try again, or {link(`open ${assistantName}`)}.</Notice>;
+        case "replied":
+            return <Notice>{assistantName} replied in the chat. {link("Open Chat")}</Notice>;
+        case "error":
+            return (
+                <Notice>
+                    {assistantName} couldn’t finish. Your prompt is back in the box. Try again, or {link("open the chat")} for details.
+                </Notice>
+            );
+        default:
+            return null;
+    }
+}
+
 interface EmptyStateProps {
     onCreateFromScratch: () => void;
     onAddMcpService?: () => void;
@@ -484,14 +522,11 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
     const { rpcClient } = useRpcContext();
     const [status, setStatus] = useState<AgentRunStatus | null>(null);
     const [text, setText] = useState("");
-    const [submittedPrompt, setSubmittedPrompt] = useState<string>();
     const [aiSnapshot, setAiSnapshot] = useState<AIMachineSnapshot>();
     const [pendingPrompt, setPendingPrompt] = useState<{ prompt: string; options: PromptSubmitOptions }>();
     const [setupRequested, setSetupRequested] = useState(false);
-    const [startFailed, setStartFailed] = useState(false);
     const [idleMounted, setIdleMounted] = useState(true);
     const promptRef = useRef<CopilotPromptBoxHandle>(null);
-    const runStartedRef = useRef(false);
 
     const aiPanelOpen = useAiPanelOpen();
 
@@ -520,33 +555,17 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
         rpcClient.onAIPanelStateChanged(refreshAiSnapshot);
     }, [rpcClient, refreshAiSnapshot]);
 
-    const state = status?.state ?? "idle";
-    const working = state !== "idle";
-    const running = state === "running";
     // The transition starts on click, not when the extension reports the run —
     // opening the panel and starting it takes long enough to read as a dead beat.
-    const showRun = working || submittedPrompt !== undefined;
-
-    useEffect(() => {
-        if (working) {
-            runStartedRef.current = true;
-            return;
-        }
-        if (submittedPrompt === undefined) {
-            return;
-        }
-        if (runStartedRef.current) {
-            runStartedRef.current = false;
-            setSubmittedPrompt(undefined);
-            return;
-        }
-        const timer = setTimeout(() => {
-            setSubmittedPrompt(undefined);
-            setText(submittedPrompt);
-            setStartFailed(true);
-        }, RUN_START_TIMEOUT_MS);
-        return () => clearTimeout(timer);
-    }, [working, submittedPrompt]);
+    const { state, active, runPrompt, notice, clearNotice, handedOff, handoffFailed, showRun } = useWelcomeRun(
+        status,
+        aiPanelOpen,
+        (prompt) => setText((current) => current || prompt)
+    );
+    const working = state !== "idle";
+    const running = state === "running";
+    // With the chat open, its own input is the one to use.
+    const compact = aiPanelOpen && !showRun;
 
     useEffect(() => {
         if (!showRun) {
@@ -560,16 +579,8 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
     const orbColors = working ? AGENT_BUILDER_ORB_COLORS[state] : ACCENT_SPHERE;
     const orbGlow = frameTriple(orbColors[0]);
     const orbHighlight = working ? `color-mix(in srgb, ${orbColors[0]} 70%, transparent)` : ACCENT_CORE;
-    const runHeading =
-        state === "awaiting-input"
-            ? awaitingInputLabel()
-            : state === "error"
-                ? "Something went wrong"
-                : state === "completed"
-                    ? "All done"
-                    : "Building your agent";
-    const runDetail =
-        state === "completed" ? undefined : status?.label ?? (running ? "Working on it…" : undefined);
+    const runHeading = state === "awaiting-input" ? awaitingInputLabel() : "Working on it…";
+    const runDetail = active ? status?.label : undefined;
     const showOpenCopilot = !aiPanelOpen;
     const orbLabel = showOpenCopilot ? `Open ${assistantName}` : undefined;
     const authState = toAuthState(aiSnapshot?.state);
@@ -580,20 +591,27 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
     const openCopilot = () => openCopilotPanel(rpcClient);
 
     const dispatch = async (prompt: string, options: PromptSubmitOptions) => {
-        const handedOff = await submitPromptToCopilot(rpcClient, prompt, {
+        handedOff(prompt);
+        const accepted = await submitPromptToCopilot(rpcClient, prompt, {
             ...options,
             newThread: true,
             hiddenContext: copy.hiddenContext,
         });
-        if (handedOff) {
-            setSubmittedPrompt(prompt);
+        if (accepted) {
             setText("");
+        } else {
+            handoffFailed();
         }
-        return handedOff;
+        return accepted;
     };
 
+    const fillExample = (prompt: string) =>
+        compact
+            ? void submitPromptToCopilot(rpcClient, prompt, { autoSubmit: false, hiddenContext: copy.hiddenContext })
+            : promptRef.current?.fill(prompt);
+
     const send = async (prompt: string, options: PromptSubmitOptions) => {
-        setStartFailed(false);
+        clearNotice();
         const authenticated =
             authState === "authenticated" ||
             (await rpcClient?.getAiPanelRpcClient().isUserAuthenticated().catch(() => false));
@@ -730,7 +748,7 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
                         <Heading>{runHeading}</Heading>
                         {runDetail && <Subtitle live>{runDetail}</Subtitle>}
                     </Intro>
-                    {submittedPrompt && <PromptEcho>{submittedPrompt}</PromptEcho>}
+                    {runPrompt && <PromptEcho>{runPrompt}</PromptEcho>}
                     {showOpenCopilot && (
                         <ScratchLine>
                             <LinkButton type="button" onClick={openCopilot}>
@@ -752,28 +770,24 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
                         </ExitGroup>
 
                         <ExitGroup $out={showRun} $delay={110}>
-                            <ComposerRow>
-                                <CopilotPromptBox
-                                    ref={promptRef}
-                                    value={text}
-                                    onChange={setText}
-                                    onSubmit={send}
-                                    placeholder={copy.placeholder}
-                                    ariaLabel={copy.inputLabel}
-                                    state={state}
-                                    setupPrompt={setupHint}
-                                />
-                            </ComposerRow>
-
-                            {startFailed && (
-                                <Notice>
-                                    {assistantName} didn’t start. Try again, or{" "}
-                                    <LinkButton type="button" onClick={openCopilot}>
-                                        open {assistantName}
-                                    </LinkButton>
-                                    .
-                                </Notice>
+                            {compact ? (
+                                <Notice>Continue in the chat, or pick an example below to start it there.</Notice>
+                            ) : (
+                                <ComposerRow>
+                                    <CopilotPromptBox
+                                        ref={promptRef}
+                                        value={text}
+                                        onChange={setText}
+                                        onSubmit={send}
+                                        placeholder={copy.placeholder}
+                                        ariaLabel={copy.inputLabel}
+                                        state={state}
+                                        setupPrompt={setupHint}
+                                    />
+                                </ComposerRow>
                             )}
+
+                            <RunNoticeLine notice={notice} assistantName={assistantName} onOpenChat={openCopilot} />
 
                         </ExitGroup>
 
@@ -785,7 +799,7 @@ export function EmptyState({ onCreateFromScratch, onAddMcpService, isLibrary }: 
                                         <Card
                                             key={example.name}
                                             type="button"
-                                            onClick={() => promptRef.current?.fill(example.prompt)}
+                                            onClick={() => fillExample(example.prompt)}
                                         >
                                             <Icon
                                                 name={example.icon}
