@@ -228,6 +228,7 @@ export const CopilotPromptBox = forwardRef<CopilotPromptBoxHandle, CopilotPrompt
         });
     const inputRef = useRef<HTMLTextAreaElement>(null);
     const focusPendingRef = useRef(false);
+    const sendingRef = useRef(false);
 
     useImperativeHandle(ref, () => ({
         fill: (prompt: string) => {
@@ -255,11 +256,16 @@ export const CopilotPromptBox = forwardRef<CopilotPromptBoxHandle, CopilotPrompt
     const canSend = value.trim().length > 0 && attachmentsReady;
 
     const submit = async () => {
-        if (!canSend) {
+        if (!canSend || sendingRef.current) {
             return;
         }
-        if (await onSubmit(value.trim(), { planMode: agentMode === AgentMode.Plan, attachments })) {
-            removeAllAttachments();
+        sendingRef.current = true;
+        try {
+            if (await onSubmit(value.trim(), { planMode: agentMode === AgentMode.Plan, attachments })) {
+                removeAllAttachments();
+            }
+        } finally {
+            sendingRef.current = false;
         }
     };
 
