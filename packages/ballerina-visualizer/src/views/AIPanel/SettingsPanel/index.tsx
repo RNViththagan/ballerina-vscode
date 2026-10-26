@@ -369,8 +369,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
             icon: <span className="codicon codicon-file" style={{ fontSize: 16 }} />,
             label: "Agent instructions",
             subtitle: agentsMdSubtitle,
-            onEditFile: handleOpenAgentsMd,
-            editFileTitle: agentsMdInfo?.fileExists ? "Edit AGENTS.md" : "Create AGENTS.md",
+            onOpenPanel: handleOpenAgentsMd,
         },
     ];
 
