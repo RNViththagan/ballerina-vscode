@@ -29,7 +29,11 @@ function isUnsavedFile(document: TextDocument): boolean {
 
 /** `save()` also returns false when the document was saved in the meantime, which is not a failure. */
 async function save(document: TextDocument): Promise<boolean> {
-    return (await document.save()) || !document.isDirty;
+    try {
+        return (await document.save()) || !document.isDirty;
+    } catch {
+        return !document.isDirty;
+    }
 }
 
 /** Returns the paths that are still unsaved. */

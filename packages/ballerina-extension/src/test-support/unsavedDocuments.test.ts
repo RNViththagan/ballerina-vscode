@@ -75,6 +75,14 @@ describe("saveUnsavedDocuments", () => {
 
         expect(await saveUnsavedDocuments("/ws")).toEqual([]);
     });
+
+    it("treats a save that throws as not saved", async () => {
+        const document = documentFor("/ws/main.bal");
+        document.save.mockRejectedValue(new Error("disk full"));
+        workspace.textDocuments = [document, documentFor("/ws/types.bal")];
+
+        expect(await saveUnsavedDocuments("/ws")).toEqual(["/ws/main.bal"]);
+    });
 });
 
 describe("saveIfUnsaved", () => {

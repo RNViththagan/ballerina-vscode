@@ -903,7 +903,7 @@ async function handleCheckMode(
         configPath = getConfigPath(packageBasePath, isTestConfig);
         configFileName = getConfigFileName(isTestConfig);
     }
-    await saveIfUnsaved(configPath);
+    await saveConfigOrThrow(configPath, packageBasePath);
 
     if (!fs.existsSync(configPath)) {
         return {

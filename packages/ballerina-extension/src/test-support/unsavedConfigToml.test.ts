@@ -87,4 +87,17 @@ describe("config collector with an unsaved Config.toml", () => {
         expect(result.message).toContain("unsaved changes");
         expect(fs.readFileSync(configPath, "utf8")).toBe(CONFIG);
     });
+
+    it("refuses to report Config.toml status when it cannot be saved", async () => {
+        unsavedConfigEditor(false);
+
+        const result = await ConfigCollectorTool(
+            { mode: "check" } as never,
+            jest.fn(),
+            { tempPath: root, workspacePath: root }
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("unsaved changes");
+    });
 });
