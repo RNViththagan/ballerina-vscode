@@ -48,7 +48,9 @@ import { SettingsPanel } from "./index";
 
 const ROW_LABELS = ["MCP servers", "Skills", "Agent instructions"];
 
-function makeRpcClient() {
+const AGENTS_MD_WITH_CONTENT = { fileExists: true, hasWorkspace: true, lineCount: 2, isEmpty: false };
+
+function makeRpcClient(agentsMdInfo: object = AGENTS_MD_WITH_CONTENT) {
     const openOrCreateAgentsMd = jest.fn().mockResolvedValue(undefined);
     const api = {
         getCopilotOrbVisible: jest.fn().mockResolvedValue(true),
@@ -56,12 +58,7 @@ function makeRpcClient() {
         getMcpToolsEnabled: jest.fn().mockResolvedValue(false),
         listMcpServers: jest.fn().mockResolvedValue([]),
         getSkills: jest.fn().mockResolvedValue({ skills: [] }),
-        getAgentsMdFileInfo: jest.fn().mockResolvedValue({
-            fileExists: true,
-            hasWorkspace: true,
-            lineCount: 2,
-            isEmpty: false,
-        }),
+        getAgentsMdFileInfo: jest.fn().mockResolvedValue(agentsMdInfo),
         isCopilotSignedIn: jest.fn().mockResolvedValue(false),
         openOrCreateAgentsMd,
     };
@@ -70,7 +67,7 @@ function makeRpcClient() {
         onMcpServersChanged: (): (() => void) => (): void => undefined,
         onAgentsMdFileInfoChanged: (): (() => void) => (): void => undefined,
     };
-    return { client, openOrCreateAgentsMd };
+    return { client, api, openOrCreateAgentsMd };
 }
 
 describe("SettingsPanel Customize Copilot rows", () => {
@@ -118,6 +115,27 @@ describe("SettingsPanel Customize Copilot rows", () => {
         await render(makeRpcClient().client);
 
         expect(rowFor(label)!.querySelector(".codicon-chevron-right")).not.toBeNull();
+    });
+
+    it.each([
+        ["no workspace", { fileExists: false, hasWorkspace: false }, "Open a workspace folder to create AGENTS.md"],
+        ["no AGENTS.md", { fileExists: false, hasWorkspace: true }, "Create AGENTS.md"],
+        ["an empty AGENTS.md", { fileExists: true, hasWorkspace: true, lineCount: 0, isEmpty: true }, "Edit AGENTS.md"],
+        ["an AGENTS.md with content", AGENTS_MD_WITH_CONTENT, "Edit AGENTS.md"],
+    ])("shows the Agent instructions tooltip for %s", async (_state, info, tooltip) => {
+        await render(makeRpcClient(info).client);
+
+        const row = rowFor("Agent instructions")!;
+        expect(row.title).toBe(tooltip);
+        expect(row.querySelector("[title]")).toBeNull();
+    });
+
+    it("shows no Agent instructions tooltip before the file info arrives", async () => {
+        const rpc = makeRpcClient();
+        rpc.api.getAgentsMdFileInfo.mockReturnValue(new Promise(() => undefined));
+        await render(rpc.client);
+
+        expect(rowFor("Agent instructions")!.hasAttribute("title")).toBe(false);
     });
 
     it("opens AGENTS.md when the Agent instructions row is clicked", async () => {

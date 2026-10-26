@@ -31,6 +31,7 @@ export interface CustomizeEntry {
     label: string;
     subtitle?: string;
     disabled?: boolean;
+    tooltip?: string;
     toggle?: {
         on: boolean;
         pending?: boolean;
@@ -161,12 +162,12 @@ export const CustomizeRow: React.FC<{ entry: CustomizeEntry }> = ({ entry }) => 
             role={entry.onOpenPanel ? "button" : undefined}
             tabIndex={clickable ? 0 : undefined}
             aria-disabled={entry.disabled || undefined}
-            title={entry.disabled ? "Coming soon" : undefined}
+            title={entry.disabled ? "Coming soon" : entry.tooltip}
         >
             <IconWrap>{entry.icon}</IconWrap>
             <Info>
                 <Label>{entry.label}</Label>
-                {entry.subtitle && <Subtitle title={entry.subtitle}>{entry.subtitle}</Subtitle>}
+                {entry.subtitle && <Subtitle title={entry.tooltip ? undefined : entry.subtitle}>{entry.subtitle}</Subtitle>}
             </Info>
             <Actions onClick={stop}>
                 {entry.toggle && (
