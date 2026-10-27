@@ -29,6 +29,8 @@ CATALOG_FILE = (
     / "src" / "main" / "resources" / "ai_catalog_fallback.json"
 )
 GENERATOR_TASK = ":flow-model-generator:flow-model-generator-core:generateAiCatalogFallback"
+# Keep in sync with AiUtils.DEPRECATED_AI_PACKAGES.
+DEPRECATED_PACKAGES = {"ai.devant"}
 
 
 def fetch_json(url, data=None):
@@ -60,6 +62,7 @@ def fetch_modules():
             {"org": d["organization"], "name": d["name"], "version": d["version"]}
             for d in (result.get(alias) or {}).get("dependentPackages", [])
             if d["organization"] == "ballerinax" and d["name"].startswith("ai.")
+            and d["name"] not in DEPRECATED_PACKAGES
         ]
         for alias, version in aliases.items()
     }
