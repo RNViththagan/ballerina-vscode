@@ -1099,7 +1099,7 @@ export function MiniChat({ anchor, focusRequest, onClose, takeInitialPrompt }: M
                 <Icon name="bi-ai-chat" sx={{ width: 16, height: 16, flex: "none" }} iconSx={{ fontSize: "16px" }} />
                 <HeaderTitle>{assistantName}</HeaderTitle>
                 <ChatSessionsButton readOnly={runActive} onThreadChange={() => setThreadVersion((version) => version + 1)} />
-                <HeaderButton title="Open full chat" aria-label={`Open the full ${shortName} chat`} onClick={openFullChat}>
+                <HeaderButton title="Open full chat" aria-label={productMode === ProductMode.AGENT_BUILDER ? `Open the full ${shortName} chat` : "Open the full Copilot chat"} onClick={openFullChat}>
                     <Codicon name="screen-full" />
                 </HeaderButton>
                 <HeaderButton title="Close" aria-label="Close the mini chat" onClick={onClose}>
