@@ -20,7 +20,7 @@ import React, { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { keyframes } from "@emotion/react";
 import { useRpcContext } from "@wso2/ballerina-rpc-client";
-import { AgentRunStatus, ChatNotify, GetRunStatusResponse, ThreadSummary, UIChatMessage, shortAssistantName } from "@wso2/ballerina-core";
+import { AgentRunStatus, ChatNotify, GetRunStatusResponse, ProductMode, ThreadSummary, UIChatMessage, shortAssistantName } from "@wso2/ballerina-core";
 import { Codicon, Icon } from "@wso2/ui-toolkit";
 import MarkdownRenderer from "../../views/AIPanel/components/MarkdownRenderer";
 import CodeContextCard from "../../views/AIPanel/components/CodeContextCard";
@@ -602,7 +602,7 @@ const FooterInput = styled.input`
     }
 `;
 
-const StopButton = styled.button`
+const FooterIconButton = styled.button`
     flex: none;
     display: flex;
     align-items: center;
@@ -1173,13 +1173,17 @@ export function MiniChat({ anchor, focusRequest, onClose, takeInitialPrompt }: M
                     readOnly={runActive}
                 />
                 {runActive ? (
-                    <StopButton title="Stop" aria-label="Stop generating" onClick={stop}>
+                    <FooterIconButton title="Stop" aria-label="Stop generating" onClick={stop}>
                         <Codicon name="stop-circle" />
-                    </StopButton>
-                ) : (
+                    </FooterIconButton>
+                ) : productMode === ProductMode.AGENT_BUILDER ? (
                     <SendButton type="button" title="Send" aria-label="Send message" onClick={send} disabled={!input.trim()}>
                         {SEND_ICON}
                     </SendButton>
+                ) : (
+                    <FooterIconButton type="button" title="Send" aria-label="Send message" onClick={send} disabled={!input.trim()}>
+                        <Codicon name="send" />
+                    </FooterIconButton>
                 )}
             </Footer>
         </Panel>
