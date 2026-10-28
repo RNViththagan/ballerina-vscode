@@ -718,8 +718,7 @@ public class AiUtils {
         Map<String, List<Module>> resolved = new HashMap<>();
         for (Map.Entry<String, List<DependentPackage>> entry : allDeps.entrySet()) {
             List<Module> modules = entry.getValue().stream()
-                    .filter(dep -> BALLERINAX.equals(dep.organization()) && dep.name().startsWith("ai.")
-                            && !DEPRECATED_AI_PACKAGES.contains(dep.name()))
+                    .filter(dep -> BALLERINAX.equals(dep.organization()) && dep.name().startsWith("ai."))
                     .map(dep -> new Module(dep.organization(), dep.name(), dep.version()))
                     .toList();
             if (!modules.isEmpty()) {
@@ -745,6 +744,7 @@ public class AiUtils {
 
         Map<String, Module> latestModules = candidateModules.stream()
                 .flatMap(Collection::stream)
+                .filter(module -> !DEPRECATED_AI_PACKAGES.contains(module.name))
                 .collect(Collectors.toMap(
                         module -> module.org + ":" + module.name,
                         module -> module,
