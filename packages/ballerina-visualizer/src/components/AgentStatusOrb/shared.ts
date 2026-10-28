@@ -780,9 +780,9 @@ export function subscribeAmbientCopilotPresence(listener: (present: boolean) => 
 }
 
 // animated: WebGL core + brand ring (default). simple: CSS sphere, no ring — also
-// the fallback when animated can't render. Add a theme by appending it here and to
-// the `ballerina.copilot.orbTheme` enum.
-export const ORB_THEMES = ["animated", "simple"] as const;
+// the fallback when animated can't render. solid: Agent Builder's own orb, its default.
+// Add a theme by appending it here and to the `ballerina.copilot.orbTheme` enum.
+export const ORB_THEMES = ["animated", "simple", "solid"] as const;
 export type OrbTheme = typeof ORB_THEMES[number];
 
 export const DEFAULT_ORB_THEME: OrbTheme = "animated";
