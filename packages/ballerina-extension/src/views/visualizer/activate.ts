@@ -222,8 +222,9 @@ export function activateSubscriptions() {
             if (deletedPackages.length === 0) {
                 return;
             }
-            // Only leave the current view when it belongs to a deleted package.
-            const silent = !deletedPackages.some((packagePath) => isPathInside(packagePath, projectPath));
+            // Only leave the open view when it belongs to a deleted package; a non-silent refresh creates a closed panel.
+            const silent = !VisualizerWebview.currentPanel
+                || !deletedPackages.some((packagePath) => isPathInside(packagePath, projectPath));
             StateMachine.refreshProjectInfo({ silent });
         })
     );
