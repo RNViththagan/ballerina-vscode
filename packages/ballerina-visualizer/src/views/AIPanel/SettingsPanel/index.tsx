@@ -252,6 +252,7 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
     const [toggles, setToggles] = useState(GENERAL_TOGGLE_DEFAULTS);
     /** Switches with a write in flight; a second click waits for the host to answer. */
     const pendingToggles = useRef(new Set<GeneralToggleKey>());
+    const openingAgentsMd = useRef(false);
     // TODO(auto-memory): memory UI state temporarily disabled for this release — restore once the memory feature is refined.
     // const [clearing, setClearing] = React.useState<'workspace' | 'all' | null>(null);
     // const [clearError, setClearError] = React.useState<string | null>(null);
@@ -351,7 +352,11 @@ export const SettingsPanel = (props: SettingsPanelProps) => {
     })();
 
     const handleOpenAgentsMd = () => {
-        rpcClient.getAiPanelRpcClient().openOrCreateAgentsMd().catch(() => { /* noop */ });
+        if (openingAgentsMd.current) return;
+        openingAgentsMd.current = true;
+        rpcClient.getAiPanelRpcClient().openOrCreateAgentsMd()
+            .catch(() => { /* noop */ })
+            .finally(() => { openingAgentsMd.current = false; });
     };
 
 

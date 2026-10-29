@@ -118,16 +118,15 @@ describe("SettingsPanel Customize Copilot rows", () => {
     });
 
     it.each([
-        ["no workspace", { fileExists: false, hasWorkspace: false }, "Open a workspace folder to create AGENTS.md"],
-        ["no AGENTS.md", { fileExists: false, hasWorkspace: true }, "Create AGENTS.md"],
-        ["an empty AGENTS.md", { fileExists: true, hasWorkspace: true, lineCount: 0, isEmpty: true }, "Edit AGENTS.md"],
-        ["an AGENTS.md with content", AGENTS_MD_WITH_CONTENT, "Edit AGENTS.md"],
-    ])("shows the Agent instructions tooltip for %s", async (_state, info, tooltip) => {
+        ["no workspace", { fileExists: false, hasWorkspace: false }, "No workspace open", "Open a workspace folder to create AGENTS.md"],
+        ["no AGENTS.md", { fileExists: false, hasWorkspace: true }, "No AGENTS.md", "Create AGENTS.md"],
+        ["an empty AGENTS.md", { fileExists: true, hasWorkspace: true, lineCount: 0, isEmpty: true }, "Empty file", "Edit AGENTS.md"],
+        ["an AGENTS.md with content", AGENTS_MD_WITH_CONTENT, "2 lines", "Edit AGENTS.md"],
+    ])("shows the Agent instructions tooltip for %s and keeps the full subtitle on hover", async (_state, info, subtitle, tooltip) => {
         await render(makeRpcClient(info).client);
 
-        const row = rowFor("Agent instructions")!;
-        expect(row.title).toBe(tooltip);
-        expect(row.querySelector("[title]")).toBeNull();
+        expect(rowFor("Agent instructions")!.title).toBe(tooltip);
+        expect(labelFor(subtitle).title).toBe(subtitle);
     });
 
     it("shows no Agent instructions tooltip before the file info arrives", async () => {
@@ -158,6 +157,57 @@ describe("SettingsPanel Customize Copilot rows", () => {
         });
 
         expect(rpc.openOrCreateAgentsMd).toHaveBeenCalledTimes(1);
+    });
+
+    it("ignores auto-repeated Enter on the Agent instructions row", async () => {
+        const rpc = makeRpcClient();
+        await render(rpc.client);
+
+        await act(async () => {
+            rowFor("Agent instructions")!.dispatchEvent(
+                new KeyboardEvent("keydown", { key: "Enter", repeat: true, bubbles: true })
+            );
+        });
+
+        expect(rpc.openOrCreateAgentsMd).not.toHaveBeenCalled();
+    });
+
+    it("ignores Agent instructions clicks until the open in flight finishes", async () => {
+        const rpc = makeRpcClient();
+        let finishOpen: () => void = () => undefined;
+        rpc.openOrCreateAgentsMd.mockReturnValue(new Promise<void>((resolve) => { finishOpen = resolve; }));
+        await render(rpc.client);
+
+        await act(async () => {
+            labelFor("Agent instructions").click();
+            labelFor("Agent instructions").click();
+        });
+        expect(rpc.openOrCreateAgentsMd).toHaveBeenCalledTimes(1);
+
+        await act(async () => {
+            finishOpen();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        await act(async () => {
+            labelFor("Agent instructions").click();
+        });
+        expect(rpc.openOrCreateAgentsMd).toHaveBeenCalledTimes(2);
+    });
+
+    it("opens AGENTS.md again after a failed open", async () => {
+        const rpc = makeRpcClient();
+        rpc.openOrCreateAgentsMd.mockRejectedValueOnce(new Error("open failed"));
+        await render(rpc.client);
+
+        await act(async () => {
+            labelFor("Agent instructions").click();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+        });
+        await act(async () => {
+            labelFor("Agent instructions").click();
+        });
+
+        expect(rpc.openOrCreateAgentsMd).toHaveBeenCalledTimes(2);
     });
 
     it("opens the MCP servers panel when its row is clicked", async () => {

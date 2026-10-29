@@ -148,7 +148,7 @@ const stop = (e: React.MouseEvent) => e.stopPropagation();
 export const CustomizeRow: React.FC<{ entry: CustomizeEntry }> = ({ entry }) => {
     const clickable = !!entry.onOpenPanel && !entry.disabled;
     const handleKeyDown = (e: React.KeyboardEvent) => {
-        if (clickable && (e.key === "Enter" || e.key === " ")) {
+        if (clickable && !e.repeat && (e.key === "Enter" || e.key === " ")) {
             e.preventDefault();
             entry.onOpenPanel?.();
         }
@@ -167,7 +167,7 @@ export const CustomizeRow: React.FC<{ entry: CustomizeEntry }> = ({ entry }) => 
             <IconWrap>{entry.icon}</IconWrap>
             <Info>
                 <Label>{entry.label}</Label>
-                {entry.subtitle && <Subtitle title={entry.tooltip ? undefined : entry.subtitle}>{entry.subtitle}</Subtitle>}
+                {entry.subtitle && <Subtitle title={entry.subtitle}>{entry.subtitle}</Subtitle>}
             </Info>
             <Actions onClick={stop}>
                 {entry.toggle && (
