@@ -50,10 +50,18 @@ export async function saveUnsavedDocuments(root: string): Promise<string[]> {
     return failed;
 }
 
-/** Returns false only when the file is open with unsaved changes that could not be saved. */
-export async function saveIfUnsaved(absolutePath: string): Promise<boolean> {
-    const document = workspace.textDocuments.find(
+function findUnsaved(absolutePath: string): TextDocument | undefined {
+    return workspace.textDocuments.find(
         (doc) => isUnsavedFile(doc) && isSamePath(doc.uri.fsPath, absolutePath)
     );
+}
+
+export function hasUnsavedChanges(absolutePath: string): boolean {
+    return findUnsaved(absolutePath) !== undefined;
+}
+
+/** Returns false only when the file is open with unsaved changes that could not be saved. */
+export async function saveIfUnsaved(absolutePath: string): Promise<boolean> {
+    const document = findUnsaved(absolutePath);
     return document ? save(document) : true;
 }
