@@ -167,6 +167,9 @@ export async function ConnectorGeneratorTool(
         const packageRoot = path.join(tempProjectPath, packagePath ?? "");
         const isService = input.mode === "service";
 
+        // The language server computes its edits against the editor text, but they are applied to the file on disk.
+        await saveUnsavedDocuments(packageRoot);
+
         const { specFilePath, sanitizedServiceName } = await saveSpecToWorkspace(
             originalContent,
             format,
@@ -176,9 +179,6 @@ export async function ConnectorGeneratorTool(
             tempProjectPath,
             modifiedFiles
         );
-
-        // The language server computes its edits against the editor text, but they are applied to the file on disk.
-        await saveUnsavedDocuments(packageRoot);
 
         if (isService) {
             sendGeneratingNotification(requestId, input.serviceName, parsedSpec, eventHandler, "service");
@@ -274,6 +274,9 @@ async function saveSpecToWorkspace(
 
     if (!fs.existsSync(specsDir)) {
         fs.mkdirSync(specsDir, { recursive: true });
+    }
+    if (hasUnsavedChanges(specFilePath)) {
+        throw new Error(unsavedChangesError(path.relative(tempProjectPath, specFilePath)));
     }
 
     const contentToSave = format === "yaml" ? originalContent : JSON.stringify(rawSpec, null, 2);

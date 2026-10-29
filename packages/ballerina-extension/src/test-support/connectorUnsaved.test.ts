@@ -46,12 +46,15 @@ const IMPORT = "import orders;\n";
 let root: string;
 let mainPath: string;
 
-function unsavedEditor() {
+function unsavedEditor(filePath = mainPath, typed = TYPED, saves = true) {
     const document = {
-        uri: { fsPath: mainPath, scheme: "file", toString: () => `file://${mainPath}` },
+        uri: { fsPath: filePath, scheme: "file", toString: () => `file://${filePath}` },
         isDirty: true,
         save: jest.fn(async () => {
-            fs.writeFileSync(mainPath, TYPED);
+            if (!saves) {
+                return false;
+            }
+            fs.writeFileSync(filePath, typed);
             document.isDirty = false;
             return true;
         }),
@@ -103,6 +106,36 @@ describe("connector generator with unsaved editor changes", () => {
         expect(diskWhenAsked).toBe(TYPED);
         expect(result.success).toBe(true);
         expect(fs.readFileSync(mainPath, "utf8")).toBe(IMPORT + TYPED);
+    });
+
+    it("generates from the submitted spec when the spec file has unsaved changes", async () => {
+        const specPath = path.join(root, "resources", "specs", "orders.yaml");
+        fs.mkdirSync(path.dirname(specPath), { recursive: true });
+        fs.writeFileSync(specPath, "openapi: 3.0.3\n");
+        unsavedEditor(specPath, "openapi: 3.0.3\ninfo:\n  title: Old\n");
+        let specWhenAsked = "";
+        openApiGenerateClient.mockImplementation(async () => {
+            specWhenAsked = fs.readFileSync(specPath, "utf8");
+            return editsFor(mainPath);
+        });
+
+        const result = await generate();
+
+        expect(result.success).toBe(true);
+        expect(specWhenAsked).toBe(SPEC);
+    });
+
+    it("refuses to replace a spec file whose unsaved changes cannot be saved", async () => {
+        const specPath = path.join(root, "resources", "specs", "orders.yaml");
+        fs.mkdirSync(path.dirname(specPath), { recursive: true });
+        fs.writeFileSync(specPath, "openapi: 3.0.3\n");
+        unsavedEditor(specPath, "", false);
+
+        const result = await generate();
+
+        expect(result.success).toBe(false);
+        expect(openApiGenerateClient).not.toHaveBeenCalled();
+        expect(fs.readFileSync(specPath, "utf8")).toBe("openapi: 3.0.3\n");
     });
 
     it("refuses when a file it edits gets unsaved changes while the edits are computed", async () => {
