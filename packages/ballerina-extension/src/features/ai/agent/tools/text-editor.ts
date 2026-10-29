@@ -114,6 +114,10 @@ function verifyPersisted(
   return { valid: true };
 }
 
+function liveEditRoot(ctx: ExecutionContext): string {
+  return ctx.workspacePath || ctx.projectPath;
+}
+
 /**
  * Persists a tool's computed content. Workspace-backed edits go through VS Code's document
  * model (workspace.applyEdit + saveAll) so open editors and diagrams see them immediately;
@@ -146,7 +150,7 @@ async function persistLiveEdit(
       return { ok: false, error: error instanceof Error ? error.message : String(error) };
     }
   }
-  const workspaceRoot = ctx.workspacePath || ctx.projectPath;
+  const workspaceRoot = liveEditRoot(ctx);
   const absolutePath = path.join(workspaceRoot, file_path);
   // A Ballerina.toml that doesn't exist yet means the agent is creating a whole new
   // package mid-run — its ai:// baseline must be frozen NOW, before more files land,
@@ -276,12 +280,11 @@ const ErrorMessages = {
 /** Writes replace the whole document, so a file with unsaved editor text that won't save must not be touched. */
 async function refuseIfUnsaved(
   ctx: ExecutionContext | undefined,
-  fullPath: string,
   file_path: string,
   toolName: string,
   eventHandler: CopilotEventHandler
 ): Promise<TextEditorResult | undefined> {
-  if (!ctx || await saveIfUnsaved(fullPath)) {
+  if (!ctx || await saveIfUnsaved(path.join(liveEditRoot(ctx), file_path))) {
     return undefined;
   }
   console.error(`[TextEditorTool] ${file_path} has unsaved changes that could not be saved.`);
@@ -430,7 +433,7 @@ export function createWriteExecute(
     }
 
     const fullPath = path.join(tempProjectPath, file_path);
-    const unsavedRefusal = await refuseIfUnsaved(ctx, fullPath, file_path, FILE_WRITE_TOOL_NAME, eventHandler);
+    const unsavedRefusal = await refuseIfUnsaved(ctx, file_path, FILE_WRITE_TOOL_NAME, eventHandler);
     if (unsavedRefusal) {
       return unsavedRefusal;
     }
@@ -556,7 +559,7 @@ export function createEditExecute(
     }
 
     const fullPath = path.join(tempProjectPath, file_path);
-    const unsavedRefusal = await refuseIfUnsaved(ctx, fullPath, file_path, FILE_SINGLE_EDIT_TOOL_NAME, eventHandler);
+    const unsavedRefusal = await refuseIfUnsaved(ctx, file_path, FILE_SINGLE_EDIT_TOOL_NAME, eventHandler);
     if (unsavedRefusal) {
       return unsavedRefusal;
     }
@@ -716,7 +719,7 @@ export function createMultiEditExecute(
     }
 
     const fullPath = path.join(tempProjectPath, file_path);
-    const unsavedRefusal = await refuseIfUnsaved(ctx, fullPath, file_path, FILE_BATCH_EDIT_TOOL_NAME, eventHandler);
+    const unsavedRefusal = await refuseIfUnsaved(ctx, file_path, FILE_BATCH_EDIT_TOOL_NAME, eventHandler);
     if (unsavedRefusal) {
       return unsavedRefusal;
     }

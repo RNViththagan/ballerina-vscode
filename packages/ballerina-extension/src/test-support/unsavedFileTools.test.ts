@@ -107,6 +107,25 @@ describe("file tools with unsaved editor changes", () => {
         expect(addToIntegration).not.toHaveBeenCalled();
     });
 
+    it("checks the file the edit is written to when that differs from the one read", async () => {
+        const copy = fs.mkdtempSync(path.join(os.tmpdir(), "unsaved-tools-copy-"));
+        fs.writeFileSync(path.join(copy, "main.bal"), SAVED);
+        const document = unsavedEditor(false);
+        const ctx = { workspacePath: root, projectPath: root } as never;
+
+        try {
+            const result = await createWriteExecute(jest.fn(), copy, [], new Set(), ctx)(
+                { file_path: "main.bal", content: "function other() {\n}\n", overwrite: true }
+            );
+
+            expect(document.save).toHaveBeenCalled();
+            expect(result.success).toBe(false);
+            expect(addToIntegration).not.toHaveBeenCalled();
+        } finally {
+            fs.rmSync(copy, { recursive: true, force: true });
+        }
+    });
+
     it("reads the user's text once it is saved", async () => {
         unsavedEditor(true);
 
