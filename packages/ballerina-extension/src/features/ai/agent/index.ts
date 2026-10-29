@@ -118,49 +118,28 @@ export async function generateAgent(params: GenerateAgentCodeRequest): Promise<b
         generationId: string;
         eventHandler: AICommandConfig<GenerateAgentCodeRequest>["eventHandler"];
     } | undefined;
+    let claimedExecution: { projectRootPath: string; threadId: string; abortController: AbortController } | undefined;
     let executorStarted = false;
     try {
         // Always use the active thread — params.threadId is legacy/unused
         const projectRootPath = resolveProjectRootPath();
         const threadId = chatStateStorage.getActiveThread(projectRootPath)?.id ?? 'default';
 
-        const assertCanStart = () => {
-            // Only one generation may be in flight per thread at a time.
-            if (
-                chatStateStorage.getActiveExecution(projectRootPath, threadId)
-                || runEventStore.getRunStatus(projectRootPath, threadId).isRunning
-            ) {
-                throw new Error('A generation is already in progress. Please wait for it to finish before starting a new one.');
-            }
-
-            // A restore is mid-flight: it is about to truncate this thread, and finalizing below would
-            // implicitly accept the very generation it is reverting.
-            assertNoRestoreInProgress(projectRootPath, 'generateAgent');
-        };
-        assertCanStart();
-
-        // Before addGeneration, which captures the checkpoint from disk.
-        const unsavedPaths = await saveUnsavedDocuments(projectRootPath);
-        if (unsavedPaths.length > 0) {
-            const names = unsavedPaths.map(p => path.relative(projectRootPath, p)).join(', ');
-            window.showWarningMessage(`Copilot can't see your unsaved changes in ${names} and won't edit those files until you save them.`);
+        // Only one generation may be in flight per thread at a time.
+        if (
+            chatStateStorage.getActiveExecution(projectRootPath, threadId)
+            || runEventStore.getRunStatus(projectRootPath, threadId).isRunning
+        ) {
+            throw new Error('A generation is already in progress. Please wait for it to finish before starting a new one.');
         }
-        // Holds only while nothing between here and setActiveExecution awaits.
-        assertCanStart();
 
-        // Moving on to a new generation implicitly accepts a still-open previous one —
-        // on EVERY thread of the project, not just this one: the upcoming ai:// baseline
-        // reseed is a per-package LS slot shared by all threads, so any other thread's
-        // still-open review would be silently invalidated (and its decline would restore
-        // stale content over this run's edits). Nothing to clean up beyond that: edits
-        // already land directly in the real workspace, and there's no separate temp copy
-        // anymore (see existingTempPath below).
-        finalizeRevertibleGenerationsAllThreads(projectRootPath);
+        // A restore is mid-flight: it is about to truncate this thread, and finalizing below would
+        // implicitly accept the very generation it is reverting.
+        assertNoRestoreInProgress(projectRootPath, 'generateAgent');
 
-        // Create config using factory function. existingTempPath makes the agent operate
-        // directly on the real project root instead of AICommandExecutor creating a
-        // throwaway temp copy — file edits land live in the real workspace (M1+), so there's
-        // nothing left for a temp copy to buy us.
+        // existingTempPath makes the agent operate directly on the real project root instead of
+        // AICommandExecutor creating a throwaway temp copy — file edits land live in the real
+        // workspace (M1+), so there's nothing left for a temp copy to buy us.
         const config = createExecutorConfig(params, {
             command: Command.Agent,
             chatStorageEnabled: true,  // Agent uses chat storage for multi-turn conversations
@@ -170,6 +149,32 @@ export async function generateAgent(params: GenerateAgentCodeRequest): Promise<b
             threadId,
             generationId: params.generationId,
         });
+
+        // Claimed before the first await, so a second submit is refused and Stop reaches the save below.
+        chatStateStorage.setActiveExecution(projectRootPath, threadId, {
+            generationId: config.generationId,
+            abortController: config.abortController,
+        });
+        claimedExecution = { projectRootPath, threadId, abortController: config.abortController };
+
+        // Before addGeneration, which captures the checkpoint from disk.
+        const unsavedPaths = await saveUnsavedDocuments(projectRootPath);
+        if (config.abortController.signal.aborted) {
+            return false;
+        }
+        if (unsavedPaths.length > 0) {
+            const names = unsavedPaths.map(p => path.relative(projectRootPath, p)).join(', ');
+            window.showWarningMessage(`Copilot can't see your unsaved changes in ${names} and won't edit those files until you save them.`);
+        }
+
+        // Moving on to a new generation implicitly accepts a still-open previous one —
+        // on EVERY thread of the project, not just this one: the upcoming ai:// baseline
+        // reseed is a per-package LS slot shared by all threads, so any other thread's
+        // still-open review would be silently invalidated (and its decline would restore
+        // stale content over this run's edits). Nothing to clean up beyond that: edits
+        // already land directly in the real workspace, and there's no separate temp copy
+        // anymore (see existingTempPath above).
+        finalizeRevertibleGenerationsAllThreads(projectRootPath);
 
         // Buffer this run's events so a closed/reopened panel can reconnect.
         config.trackForReconnection = true;
@@ -197,10 +202,6 @@ export async function generateAgent(params: GenerateAgentCodeRequest): Promise<b
         // The console plan's scaffold turn marks its thread as the one that publishes
         // console summaries. Before the run, so the flag is in place when it finishes.
         markConsoleOriginThread(projectRootPath, threadId, params.consoleScaffold);
-        chatStateStorage.setActiveExecution(projectRootPath, threadId, {
-            generationId: config.generationId,
-            abortController: config.abortController,
-        });
         runEventStore.beginRun(projectRootPath, threadId, config.generationId);
         preparedRun = {
             projectRootPath,
@@ -254,10 +255,14 @@ export async function generateAgent(params: GenerateAgentCodeRequest): Promise<b
                 preparedRun.threadId,
                 preparedRun.generationId
             );
-            chatStateStorage.clearActiveExecution(
-                preparedRun.projectRootPath,
-                preparedRun.threadId
-            );
+        }
+        // Stop already released the slot, and a newer run may hold it by now.
+        if (
+            claimedExecution
+            && chatStateStorage.getActiveExecution(claimedExecution.projectRootPath, claimedExecution.threadId)
+                ?.abortController === claimedExecution.abortController
+        ) {
+            chatStateStorage.clearActiveExecution(claimedExecution.projectRootPath, claimedExecution.threadId);
         }
         console.error('[Agent] Error in generateAgent:', error);
         throw error;

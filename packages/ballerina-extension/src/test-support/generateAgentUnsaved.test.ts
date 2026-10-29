@@ -119,6 +119,32 @@ describe('generateAgent with unsaved editor changes', () => {
         expect(run).toHaveBeenCalledTimes(1);
     });
 
+    it('ends the turn without running it when Stop is pressed during the save', async () => {
+        const addGeneration = jest.spyOn(chatStateStorage, 'addGeneration');
+
+        const generation = generateAgent(request('first'));
+        await Promise.resolve();
+        expect(chatStateStorage.abortActiveExecution('/workspace', 'default')).toBe(true);
+        openSaveGate();
+
+        expect(await generation).toBe(false);
+        expect(addGeneration).not.toHaveBeenCalled();
+        expect(run).not.toHaveBeenCalled();
+        expect(chatStateStorage.getActiveExecution('/workspace', 'default')).toBeUndefined();
+        addGeneration.mockRestore();
+    });
+
+    it('releases the thread when the turn fails to start', async () => {
+        const addGeneration = jest.spyOn(chatStateStorage, 'addGeneration').mockImplementation(() => {
+            throw new Error('disk full');
+        });
+        openSaveGate();
+
+        await expect(generateAgent(request('first'))).rejects.toThrow('disk full');
+        expect(chatStateStorage.getActiveExecution('/workspace', 'default')).toBeUndefined();
+        addGeneration.mockRestore();
+    });
+
     it('warns about files it could not save and still runs', async () => {
         const warn = jest.spyOn(window, 'showWarningMessage');
 
