@@ -21,8 +21,17 @@ import * as os from "os";
 import * as path from "path";
 
 jest.mock("@wso2/ballerina-core", () => ({}));
-jest.mock("../features/ai/state/ApprovalManager", () => ({ approvalManager: {} }));
-jest.mock("../features/ai/activator", () => ({ langClient: undefined }));
+const requestConfiguration = jest.fn();
+jest.mock("../features/ai/state/ApprovalManager", () => ({ approvalManager: { requestConfiguration } }));
+jest.mock("../features/ai/activator", () => ({
+    langClient: {
+        getConfigVariablesV2: async () => ({
+            configVariables: {
+                "myorg/mypkg": { "": [{ properties: { variable: { value: "apiKey" }, type: { value: "string" } } }] },
+            },
+        }),
+    },
+}));
 jest.mock("../BalExtensionContext", () => ({ extension: {} }));
 jest.mock("../rpc-managers/platform-ext/managed-connections", () => ({ getManagedLibraries: jest.fn() }));
 
@@ -62,6 +71,7 @@ beforeEach(() => {
     configPath = path.join(root, "Config.toml");
     fs.writeFileSync(configPath, CONFIG);
     workspace.textDocuments = [];
+    requestConfiguration.mockReset();
 });
 
 afterEach(() => {
@@ -86,6 +96,20 @@ describe("config collector with an unsaved Config.toml", () => {
         expect(result.success).toBe(false);
         expect(result.message).toContain("unsaved changes");
         expect(fs.readFileSync(configPath, "utf8")).toBe(CONFIG);
+    });
+
+    it("refuses before opening the form when Config.toml cannot be saved", async () => {
+        unsavedConfigEditor(false);
+
+        const result = await ConfigCollectorTool(
+            { mode: "collect", variables: [{ name: "apiKey", description: "" }] } as never,
+            jest.fn(),
+            { tempPath: root, workspacePath: root }
+        );
+
+        expect(result.success).toBe(false);
+        expect(result.message).toContain("unsaved changes");
+        expect(requestConfiguration).not.toHaveBeenCalled();
     });
 
     it("refuses to report Config.toml status when it cannot be saved", async () => {

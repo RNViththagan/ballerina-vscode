@@ -744,8 +744,7 @@ async function handleCollectMode(
 
     // Determine paths based on isTestConfig flag
     const configPath = getConfigPath(packageBasePath, isTestConfig);
-    // Only pre-populates the form; the write below refuses if the file still can't be saved.
-    await saveIfUnsaved(configPath);
+    await saveConfigOrThrow(configPath, packageBasePath);
 
     // Priority: tests/Config.toml → Config.toml → empty
     const mainConfigPath = path.join(packageBasePath, "Config.toml");
@@ -753,7 +752,7 @@ async function handleCollectMode(
         ? (fs.existsSync(configPath) ? configPath : mainConfigPath)
         : configPath;
     if (sourceConfigPath !== configPath) {
-        await saveIfUnsaved(sourceConfigPath);
+        await saveConfigOrThrow(sourceConfigPath, packageBasePath);
     }
 
     // Read existing configuration values from source config (if they exist) for pre-populating the form
