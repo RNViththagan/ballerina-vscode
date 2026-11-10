@@ -370,6 +370,9 @@ Do NOT attach a chat trigger when:
 - **The agent is a subagent.** An agent invoked through an agent tool is reached in-process by its
   parent and must never get its own HTTP endpoint.
 - **The agent already has a trigger** wired to it in the existing code.
+- **The user only asks to test, try or run the agent.** Don't add a trigger for that. Test it with
+  what the project already has, or point them to **Chat** in the agent's ⋮ menu, and offer to add a
+  chat trigger.
 
 The trigger is an `ai:Listener` and a service with a single `post chat` resource, exactly in this
 shape:
